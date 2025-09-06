@@ -307,11 +307,20 @@ class Neo4jTeamCollaborator:
                     LIMIT $limit
                 """, keyword=keyword, limit=limit)
 
-                records = [dict(record) for record in result]
+                 records = [dict(record) for record in result]
 
                 # df = pd.DataFrame(records)
                 # print(f"搜索关键词 '{keyword}' 返回 {len(df)} 条结果")
-                return records
+
+                # return records
+
+                answer = []
+
+                for line in records:
+                    # print(line['concept'] + line['relation_type'] + line['related_to'])
+                    answer.append(line['concept'] + line['relation_type'] + line['related_to'])
+                return answer
+                
         except Exception as e:
             print(f"搜索时出错: {e}")
             return pd.DataFrame()
@@ -467,3 +476,4 @@ if __name__ == "__main__":
         if 'kg' in locals():
             kg.close()
             print("数据库连接已关闭")
+
