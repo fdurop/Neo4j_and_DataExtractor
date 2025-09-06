@@ -39,11 +39,11 @@ if __name__ == '__main__':
     print(rels_df.head())
 
     try:
-        kg = Get_neo4j_2.Neo4jTeamCollaborator(
-            uri="bolt://localhost:7687",
+         kg = Get_neo4j_2.Neo4jTeamCollaborator(
+            uri="bolt://101.132.130.25:7687",
             user="neo4j",
-            password="Wangshuxvan@1"
-        )
+            password="wangshuxvan@1"
+            )
 
         # 从DataFrame直接导入数据
         kg.import_from_dataframe(nodes_df=nodes_df, rels_df=rels_df)
@@ -57,3 +57,4 @@ if __name__ == '__main__':
         if 'kg' in locals():
             kg.close()
             print("数据库连接已关闭")
+
