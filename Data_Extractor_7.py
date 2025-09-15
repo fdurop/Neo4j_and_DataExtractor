@@ -133,7 +133,7 @@ class EnhancedMultimodalExtractor:
             self.glm_model = None
             self.glm_tokenizer = None
             self.deepseek_client = None
-
+        '''
         # spaCy关系抽取（暂时保留，但不再使用）
         try:
             self.nlp_relation = spacy.load("zh_core_web_sm")
@@ -141,7 +141,7 @@ class EnhancedMultimodalExtractor:
         except:
             print("警告：无法加载spaCy中文模型用于关系抽取")
             self.nlp_relation = None
-
+        '''
         # 多模态处理设置
         self.use_clip = use_clip
         if use_clip:
@@ -1012,4 +1012,5 @@ if __name__ == "__main__":
     print("\n抽取的属性:")
     for attr in result.attributes:
         print(f"- {attr['name']} (属于: {attr.get('entity_name', '未分配')})")
+
 
