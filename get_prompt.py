@@ -192,7 +192,7 @@ class EnhancedMultimodalExtractor:
             self.clip_processor = CLIPProcessor.from_pretrained("F:\\Models\\clip-vit-base-patch32")
 
         # 加载领域配置
-        self.domain_config = self._load_domain_config(domain_config_path) or {
+        self.domain_config = {
             'term_terms': ["性能评估基准", "Benchmark", "标准化测试", "测试任务", "数据集", "模型性能", "准确率",
                            "推理速度", "计算效率"],
             'concept_terms': ["性能评估", "跨模型比较", "模型优化", "标准化"],
@@ -1589,6 +1589,7 @@ if __name__ == "__main__":
         if 'kg' in locals():
             kg.close()
             print("数据库连接已关闭")
+
 
 
 
