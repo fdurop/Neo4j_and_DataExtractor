@@ -10,6 +10,22 @@ import pandas as pd
 
 if __name__ == '__main__':
 
+    '''
+    必备操作：
+    1，数据抽取类的初始化
+    2，图数据库连接的初始化
+
+    使用方法：
+    对于输入的问题，使用（在此代码70行左右）
+        answer = extractor.extract_keywords_with_deepseek("爱因斯坦发现了相对论") 
+        prompt = kg.semantic_search(answer)                                    
+        print(prompt)         
+    第一行代码，输入问题（字符串），转化成关键词列表
+    第二行：对关键词列表，调用查询，返回“主谓宾句子”列表
+    第三行：展示结果，可有可无
+
+    '''
+    
     # 初始化抽取器 (启用CLIP需要先安装transformers和torch)
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -65,5 +81,6 @@ if __name__ == '__main__':
         if 'kg' in locals():
             kg.close()
             print("数据库连接已关闭")
+
 
 
