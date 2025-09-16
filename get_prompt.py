@@ -4,25 +4,14 @@ import os
 import json
 import pandas as pd
 
-import json
-import re
-import os
-import torch
-import numpy as np
-from typing import List, Dict, Tuple
-from dataclasses import dataclass
-from collections import defaultdict
-from PIL import Image
-import spacy
-from transformers import CLIPModel, CLIPProcessor, AutoTokenizer, pipeline
-import pandas as pd
-import requests
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 
 
+'''
+此代码实现输入问题（str）,返回prompt列表（[str]）
 
+通过一个函数：get_prompt_from_question（question : str）
+
+'''
 
 
 def get_prompt_from_question(question: str) -> [str]:
@@ -59,6 +48,27 @@ def get_prompt_from_question(question: str) -> [str]:
     return prompt
 
 
+
+
+
+
+
+import json
+import re
+import os
+import torch
+import numpy as np
+from typing import List, Dict, Tuple
+from dataclasses import dataclass
+from collections import defaultdict
+from PIL import Image
+import spacy
+from transformers import CLIPModel, CLIPProcessor, AutoTokenizer, pipeline
+import pandas as pd
+import requests
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 @dataclass
 class ExtractedTriple:
@@ -1589,6 +1599,7 @@ if __name__ == "__main__":
         if 'kg' in locals():
             kg.close()
             print("数据库连接已关闭")
+
 
 
 
