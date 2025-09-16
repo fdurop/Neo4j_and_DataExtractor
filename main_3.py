@@ -24,6 +24,8 @@ if __name__ == '__main__':
     第二行：对关键词列表，调用查询，返回“主谓宾句子”列表
     第三行：展示结果，可有可无
 
+    注意：如果还没有安装clip模型，在数据抽取类的初始化中，use_clip这个参数= Faise。
+
     '''
     
     # 初始化抽取器 (启用CLIP需要先安装transformers和torch)
@@ -81,6 +83,7 @@ if __name__ == '__main__':
         if 'kg' in locals():
             kg.close()
             print("数据库连接已关闭")
+
 
 
 
