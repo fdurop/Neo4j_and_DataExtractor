@@ -52,7 +52,7 @@ if __name__ == '__main__':
         
         # 从DataFrame直接导入数据
         # kg.import_from_dataframe(nodes_df=nodes_df, rels_df=rels_df)
-        answer = extractor.extract_keywords_with_deepseek("爱因斯坦发现了相对论") # 使用数据抽取那个类里面的deepseek做关键词抽取工作，返回关键词列表
+        answer = extractor.extract_keywords_with_deepseek("爱因斯坦发现了相对论") # 输入问题（字符串），使用数据抽取那个类里面的deepseek做关键词抽取工作，返回关键词列表
         prompt = kg.semantic_search(answer)                                     # 对于关键词列表查找，返回“主谓宾句子”的列表
         print(prompt)          # 展示结果，可有可无
 
@@ -65,4 +65,5 @@ if __name__ == '__main__':
         if 'kg' in locals():
             kg.close()
             print("数据库连接已关闭")
+
 
