@@ -23,6 +23,43 @@ import threading
 
 
 
+
+
+def get_prompt_from_question(question: str) -> [str]:
+    extractor = EnhancedMultimodalExtractor(
+        use_clip = False,
+        domain_config_path=r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\domain_config.json",
+        use_deepseek_api=True,  # 启用DeepSeek云端API
+        deepseek_model="deepseek-chat",  # 使用DeepSeek的chat模型
+        api_key='sk-c28ec338b39e4552b9e6bded47466442'  # 传入API Key
+    )
+
+    try:
+        kg = Neo4jTeamCollaborator(
+            uri="bolt://101.132.130.25:7687",
+            user="neo4j",
+            password="wangshuxvan@1"
+        )
+
+        answer = extractor.extract_keywords_with_deepseek(question)
+        # print(answer)
+        prompt = kg.semantic_search(answer)
+        # print(prompt)
+
+    except Exception as e:
+        print(f"执行过程中出错: {e}")
+        import traceback
+
+        traceback.print_exc()
+    finally:
+        if 'kg' in locals():
+            kg.close()
+            print("数据库连接已关闭")
+
+    return prompt
+
+
+
 @dataclass
 class ExtractedTriple:
     entities: List[Dict]
@@ -1558,38 +1595,3 @@ if __name__ == "__main__":
 
 
 
-
-
-
-def get_prompt_from_question(question: str) -> [str]:
-    extractor = EnhancedMultimodalExtractor(
-        use_clip = False,
-        domain_config_path=r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\domain_config.json",
-        use_deepseek_api=True,  # 启用DeepSeek云端API
-        deepseek_model="deepseek-chat",  # 使用DeepSeek的chat模型
-        api_key='sk-c28ec338b39e4552b9e6bded47466442'  # 传入API Key
-    )
-
-    try:
-        kg = Neo4jTeamCollaborator(
-            uri="bolt://101.132.130.25:7687",
-            user="neo4j",
-            password="wangshuxvan@1"
-        )
-
-        answer = extractor.extract_keywords_with_deepseek(question)
-        # print(answer)
-        prompt = kg.semantic_search(answer)
-        # print(prompt)
-
-    except Exception as e:
-        print(f"执行过程中出错: {e}")
-        import traceback
-
-        traceback.print_exc()
-    finally:
-        if 'kg' in locals():
-            kg.close()
-            print("数据库连接已关闭")
-
-    return prompt
