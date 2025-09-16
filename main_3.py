@@ -25,8 +25,8 @@ if __name__ == '__main__':
         deepseek_model="deepseek-chat",  # 使用DeepSeek的chat模型
         api_key=api_key  # 传入API Key
     )
-
-    file_path = r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\week4_p65.json"
+    '''
+    file_path = r"E:/Neo4j/neo4j-community-5.26.0-windows/neo4j-community-5.26.0-windows/neo4j-community-5.26.0\import\week4_p65.json"
     # 执行抽取
     result = extractor.process_multimodal_data([file_path])
 
@@ -35,13 +35,15 @@ if __name__ == '__main__':
     attributes = result.attributes
 
 
+
     # 转换数据
     nodes_df, rels_df = Data_Extractor_7.convert_extracted_to_dataframes(entities, relations)
-
+    
     print("节点数据:")
     print(nodes_df.head())
     print("\n关系数据:")
     print(rels_df.head())
+    '''
 
     try:
         kg = Get_neo4j_2.Neo4jTeamCollaborator(
@@ -51,9 +53,10 @@ if __name__ == '__main__':
         )
 
         # 从DataFrame直接导入数据
-        kg.import_from_dataframe(nodes_df=nodes_df, rels_df=rels_df)
-
-        # kg.semantic_search("爱因斯坦")
+        # kg.import_from_dataframe(nodes_df=nodes_df, rels_df=rels_df)
+        answer = extractor.extract_keywords_with_deepseek("爱因斯坦发现了相对论")
+        prompt = kg.semantic_search(answer)
+        print(prompt)
 
     except Exception as e:
         print(f"执行过程中出错: {e}")
