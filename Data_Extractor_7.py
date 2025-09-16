@@ -133,7 +133,7 @@ class EnhancedMultimodalExtractor:
             self.glm_model = None
             self.glm_tokenizer = None
             self.deepseek_client = None
-        '''
+
         # spaCy关系抽取（暂时保留，但不再使用）
         try:
             self.nlp_relation = spacy.load("zh_core_web_sm")
@@ -141,7 +141,7 @@ class EnhancedMultimodalExtractor:
         except:
             print("警告：无法加载spaCy中文模型用于关系抽取")
             self.nlp_relation = None
-        '''
+
         # 多模态处理设置
         self.use_clip = use_clip
         if use_clip:
@@ -914,6 +914,61 @@ class EnhancedMultimodalExtractor:
                 seen.add(key)
         return filtered
 
+    def extract_keywords_with_deepseek(self, question: str) -> List[str]:
+        """
+        使用DeepSeek模型从输入句子中提取关键词
+
+        Args:
+            question (str): 输入的句子或问题
+
+        Returns:
+            List[str]: 提取出的关键词列表
+        """
+        try:
+            # 使用类中已有的DeepSeek客户端
+            if not hasattr(self, 'deepseek_client') or not self.deepseek_client:
+                raise Exception("DeepSeek客户端未初始化")
+
+            # 构建提示词
+            prompt = f"""
+            请从以下句子中提取出最重要的关键词，只返回关键词，不要其他内容。
+            句子：{question}
+
+            要求：
+            1. 提取2-5个最重要的关键词
+            2. 关键词应该是名词、专有名词或核心概念
+            3. 用逗号分隔返回结果
+            4. 只返回关键词，不要解释
+
+            示例：
+            句子：爱因斯坦的相对论对现代物理学有什么影响？
+            返回：爱因斯坦,相对论,物理学,影响
+            """
+
+            # 调用DeepSeek API
+            response = self.deepseek_client.chat_completions_create(
+                messages=[
+                    {"role": "system", "content": "你是一个专业的关键词提取助手。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=100
+            )
+
+            # 解析响应
+            if response and 'choices' in response and len(response['choices']) > 0:
+                keywords_text = response['choices'][0]['message']['content'].strip()
+                # 分割关键词并清理
+                keywords = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
+                return keywords
+            else:
+                print("DeepSeek API返回空响应")
+                return []
+
+        except Exception as e:
+            print(f"使用DeepSeek提取关键词时出错: {e}")
+            return []
+
     def _map_entity_type(self, spacy_label: str) -> str:
         """映射spaCy标签到自定义类型"""
         mapping = {
@@ -1012,5 +1067,4 @@ if __name__ == "__main__":
     print("\n抽取的属性:")
     for attr in result.attributes:
         print(f"- {attr['name']} (属于: {attr.get('entity_name', '未分配')})")
-
 
