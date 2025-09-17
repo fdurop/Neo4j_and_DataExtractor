@@ -1,20 +1,24 @@
-import sys
-import io
 import os
 import json
 import pandas as pd
+import re
+import torch
+from dataclasses import dataclass
+from PIL import Image
+import spacy
+from transformers import CLIPModel, CLIPProcessor, AutoTokenizer, pipeline
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from neo4j import GraphDatabase
+import chardet
+from typing import Optional, Dict, List,Tuple
+from collections import defaultdict
 
 
 
-'''
-此代码实现输入问题（str）,返回prompt列表（[str]）
 
-通过一个函数：get_prompt_from_question（question : str）
-
-'''
-
-
-def get_prompt_from_question(question: str) -> [str]:
+def get_prompt_from_question(question: str) -> list[str]:
     extractor = EnhancedMultimodalExtractor(
         use_clip = False,
         domain_config_path=r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\domain_config.json",
@@ -48,27 +52,6 @@ def get_prompt_from_question(question: str) -> [str]:
     return prompt
 
 
-
-
-
-
-
-import json
-import re
-import os
-import torch
-import numpy as np
-from typing import List, Dict, Tuple
-from dataclasses import dataclass
-from collections import defaultdict
-from PIL import Image
-import spacy
-from transformers import CLIPModel, CLIPProcessor, AutoTokenizer, pipeline
-import pandas as pd
-import requests
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 
 @dataclass
 class ExtractedTriple:
@@ -202,7 +185,7 @@ class EnhancedMultimodalExtractor:
             self.clip_processor = CLIPProcessor.from_pretrained("F:\\Models\\clip-vit-base-patch32")
 
         # 加载领域配置
-        self.domain_config = {
+        self.domain_config = self._load_domain_config(domain_config_path) or {
             'term_terms': ["性能评估基准", "Benchmark", "标准化测试", "测试任务", "数据集", "模型性能", "准确率",
                            "推理速度", "计算效率"],
             'concept_terms': ["性能评估", "跨模型比较", "模型优化", "标准化"],
@@ -1077,61 +1060,6 @@ def convert_extracted_to_dataframes(entities, relations):
 
 
 
-# 使用示例
-if __name__ == "__main__":
-    # 设置API Key（可以通过环境变量或直接输入）
-    import sys
-    import io
-    import os
-
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
-    # 获取DeepSeek API Key
-    api_key = os.getenv("sk-c28ec338b39e4552b9e6bded47466442")
-    if not api_key:
-        api_key = input("请输入您的DeepSeek API Key: ")
-
-    extractor = EnhancedMultimodalExtractor(
-        use_clip=True,
-        domain_config_path=r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\domain_config.json",
-        use_deepseek_api=True,  # 启用DeepSeek云端API
-        deepseek_model="deepseek-chat",  # 使用DeepSeek的chat模型
-        api_key=api_key  # 传入API Key
-    )
-
-    test_path = r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\test_file.json"
-
-    if os.path.exists(test_path):
-        print("文件存在！！")
-        result = extractor.process_multimodal_data([test_path])
-    else:
-        print(f" 文件不存在: {test_path}")
-
-    # print(result)
-
-    print("抽取的实体:")
-    for ent in result.entities:
-        print(f"- {ent['name']} ({ent['type']})")
-
-    print("\n抽取的关系:")
-    for rel in result.relationships:
-        print(f"- {rel['source']} → {rel['target']}: {rel['type']}")
-
-    print("\n抽取的属性:")
-    for attr in result.attributes:
-        print(f"- {attr['name']} (属于: {attr.get('entity_name', '未分配')})")
-
-from neo4j import GraphDatabase
-import pandas as pd
-from IPython.display import display
-import os
-import chardet
-from typing import Optional, Dict, List,Tuple
-import requests
-import json
-from collections import defaultdict
-
-
 
 def get_encoding(file_paths: List[str]) -> None:
     """检测文件编码格式"""
@@ -1529,81 +1457,3 @@ def fetch_data_from_url(url):
     except requests.exceptions.RequestException as e:
         print(f"请求出错: {e}")
         return None
-
-
-# 示例用法
-if __name__ == "__main__":
-    try:
-
-        kg = Neo4jTeamCollaborator(
-            uri="bolt://101.132.130.25:7687",
-            user="neo4j",
-            password="wangshuxvan@1"
-        )
-
-        # 测试CSV节点文件路径
-        node_csv_path = r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\get_node_csv.csv"
-
-        # 测试JSON文件路径
-        #　node_json_path = r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\get_node_json.json"
-
-        # 测试csv关系文件路径
-        rel_csv_path = r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\get_rel_csv.csv"
-
-        # 测试json关系文件路径
-        #　rel_json_path = r"E:\Neo4j\neo4j-community-5.26.0-windows\neo4j-community-5.26.0-windows\neo4j-community-5.26.0\import\get_rel_json.json"
-
-        # print("=== 检查文件存在性 ===")
-        # file_exist([node_csv_path, node_json_path, rel_csv_path])
-
-
-        # 导入数据
-        kg.import_data(node_file = node_csv_path , rel_file = rel_csv_path ,format_type="csv")
-
-        # print("\n=== 导入JSON节点文件 ===")
-        # 导入JSON节点（使用相同的关系文件，或者可以创建单独的JSON关系文件）
-        # kg.import_data(rel_file = rel_csv_path, format_type="json")
-
-
-        print("\n=== 执行搜索测试 ===")
-        results = kg.semantic_search("爱因斯坦")
-        print(results)
-
-        # result ：查询到的“主谓宾”语句的列表。
-
-        '''
-        print("搜索的结果:")
-        # display(results)
-
-        for line in results:
-            print(line['concept'] + line['relation_type'] + line['related_to'])
-        '''
-        # print("\n=== 获取统计信息 ===")
-        # node_stats = kg.get_node_statistics()
-        # rel_stats = kg.get_relationship_statistics()
-        # print("节点统计:", node_stats)
-        # print("关系统计:", rel_stats)
-        '''
-        print("\n=== 测试高级搜索 ===")
-        # 搜索新导入的泰勒定理相关节点
-        advanced_results = kg.advanced_search("神经" )
-        print("搜索的结果:")
-        display(advanced_results)
-        '''
-
-    except Exception as e:
-        print(f"执行过程中出错: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        if 'kg' in locals():
-            kg.close()
-            print("数据库连接已关闭")
-
-
-
-
-
-
-
-
