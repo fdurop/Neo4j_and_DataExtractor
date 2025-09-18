@@ -8,46 +8,83 @@ torchaudio==2.8.0
 torchvision==0.23.0
 transformers==4.55.2
 
-# 文档处理
-PyMuPDF==1.24.14
-pdfplumber==0.11.4
-camelot-py[cv]==0.11.0
-python-pptx==1.0.2
+# 大语言模型相关
+sentence-transformers==5.1.0
 
-# 图像处理和OCR
+# 自然语言处理
+spacy==3.8.7
+spacy-legacy==3.0.12
+spacy-loggers==1.0.5
+
+# 图像处理和多模态
 Pillow==11.0.0
 opencv-python==4.10.0.84
-easyocr==1.7.2
 
 # 数据处理
 pandas==2.3.1
 numpy==2.2.1
 openpyxl==3.1.5
 
-# 网络请求和编码
-requests==2.32.4
-chardet==5.2.0
-
-# 自然语言处理
-spacy==3.8.7
-spacy-legacy==3.0.12
-spacy-loggers==1.0.5
-sentence-transformers==5.1.0
-
 # 数据库连接
 neo4j==5.28.2
 
-# 中文分词
-spacy_pkuseg==1.0.1
+# 网络请求和编码
+requests==2.32.4
+chardet==5.2.0
 
 # 系统工具
 tqdm==4.67.1
 colorama==0.4.6
 
-# 可选：Jupyter支持
+# JSON处理
+json5==0.9.28
+
+# 并发处理
+concurrent-futures==3.1.1
+
+# 类型检查
+typing-extensions==4.12.2
+
+# 数据类支持
+dataclasses==0.6
+
+# 集合工具
+collections-extended==2.0.2
+
+# 线程安全
+threading2==0.1.2
+
+# 时间处理
+python-dateutil==2.9.0
+
+# 环境变量
+python-dotenv==1.0.1
+
+# 配置文件处理
+pyyaml==6.0.2
+
+# 日志处理
+loguru==0.7.2
+
+# 进度条
+rich==13.9.4
+
+# 异常处理
+traceback2==1.4.0
+
+# 内存分析 (可选)
+# memory-profiler==0.61.0
+
+# Jupyter支持 (可选)
 # jupyter==1.1.1
 # notebook==7.3.1
+# ipywidgets==8.1.5
 
-# 可选：可视化
+# 可视化 (可选)
 # matplotlib==3.9.4
 # seaborn==0.13.2
+# plotly==5.24.1
+
+# 测试框架 (开发用)
+# pytest==8.3.4
+# pytest-cov==6.0.0
