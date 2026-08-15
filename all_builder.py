@@ -1,3 +1,7 @@
+"修改：增加节点的layer属性"
+
+
+
 import os
 import json
 import time
@@ -42,7 +46,7 @@ DEBUG_DIR = r"C:\Users\Lin\Desktop\学习文件--杂项。\复芏计划项目相
 TEMP_DIR = r"C:\Users\Lin\Desktop\学习文件--杂项。\复芏计划项目相关\暂存"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-# 【优化⑦】所有密钥统一从 key.env 读取，不再硬编码
+# 所有密钥统一从 key.env 读取，不再硬编码
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
@@ -51,9 +55,13 @@ NEO4J_URI = os.getenv("NEO4J_URI", "neo4j+s://fced1671.databases.neo4j.io")
 NEO4J_USER = os.getenv("NEO4J_USER", "fced1671")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 
-# 【优化④】断点续跑用的中间文件（每批抽取完立即追加保存）
+# 断点续跑用的中间文件（每批抽取完立即追加保存）
 PARTIAL_SAVE_PATH = os.path.join(TEMP_DIR, "concepts_partial.jsonl")
 FINAL_SAVE_PATH = os.path.join(TEMP_DIR, "concepts_graph.json")
+
+# 【新增】Layer 常量定义，方便统一管理
+LAYER_CONCEPT = 1   # 知识点层
+LAYER_MATERIAL = 2  # 素材/物理结构层（Course, Document, Page, Figure, TextChunk 等）
 
 # ==========================================
 # 🧠 模块一：DeepSeek 知识点抽取 (KG Builder)
@@ -82,7 +90,6 @@ class DeepSeekClient:
                 res.raise_for_status()
                 return res.json()['choices'][0]['message']['content']
             except requests.exceptions.HTTPError as e:
-                # 【优化⑤】429限流单独处理，等待更久
                 if e.response is not None and e.response.status_code == 429:
                     wait = 20 * (attempt + 1)
                     print(f"⚠️ 触发限流，等待 {wait}秒...")
@@ -97,7 +104,7 @@ class DeepSeekClient:
 
 
 def _smart_truncate(node: Dict, text_limit=800, other_limit=500) -> str:
-    """【优化②】根据节点类型智能截断长度，文本块给更多空间"""
+    """根据节点类型智能截断长度，文本块给更多空间"""
     desc = node.get('description', '') or node.get('raw_text', '') or ''
     limit = text_limit if node.get('node_type') == 'TextChunk' else other_limit
     if len(desc) > limit:
@@ -106,7 +113,7 @@ def _smart_truncate(node: Dict, text_limit=800, other_limit=500) -> str:
 
 
 def _load_processed_node_ids() -> Set[str]:
-    """【优化④】读取已完成批次涉及的 node_id，用于断点续跑判断"""
+    """读取已完成批次涉及的 node_id，用于断点续跑判断"""
     processed = set()
     if os.path.exists(PARTIAL_SAVE_PATH):
         with open(PARTIAL_SAVE_PATH, 'r', encoding='utf-8') as f:
@@ -123,7 +130,7 @@ def _load_processed_node_ids() -> Set[str]:
 
 
 def _append_partial_result(batch_node_ids: List[str], concepts: List[Dict], relations: List[Dict]):
-    """【优化④】每批抽取完立即追加落盘，防止 API 费用打水漂"""
+    """每批抽取完立即追加落盘，防止 API 费用打水漂"""
     with open(PARTIAL_SAVE_PATH, 'a', encoding='utf-8') as f:
         record = {
             "batch_node_ids": batch_node_ids,
@@ -157,9 +164,9 @@ def build_knowledge_concepts(resume: bool = True):
     nodes_path = os.path.join(KG_DATA_DIR, "multimodal_nodes.json")
     with open(nodes_path, 'r', encoding='utf-8') as f:
         nodes = json.load(f)
-    valid_node_ids = {n['node_id'] for n in nodes}  # 【优化③】用于后续幻觉校验
+    valid_node_ids = {n['node_id'] for n in nodes}  # 用于后续幻觉校验
 
-    # 【优化④】断点续跑：跳过已处理过的节点所在批次
+    # 断点续跑：跳过已处理过的节点所在批次
     processed_ids = _load_processed_node_ids() if resume else set()
     if processed_ids:
         print(f"♻️ 检测到断点续跑记录，已处理过 {len(processed_ids)} 个节点，将跳过对应批次")
@@ -219,7 +226,7 @@ def build_knowledge_concepts(resume: bool = True):
             batch_concepts = data.get('concepts', [])
             batch_relations = data.get('relationships', [])
 
-            # 【优化③】幻觉校验：过滤掉引用了不存在 node_id 的证据
+            # 幻觉校验：过滤掉引用了不存在 node_id 的证据
             for c in batch_concepts:
                 original_ev = c.get('evidence_node_ids', [])
                 valid_ev = [eid for eid in original_ev if eid in valid_node_ids]
@@ -234,10 +241,10 @@ def build_knowledge_concepts(resume: bool = True):
         except Exception as e:
             print(f"❌ 解析 JSON 失败: {e}")
 
-        # 【优化④】立即落盘，防止中途崩溃丢失已抽取的结果
+        # 立即落盘，防止中途崩溃丢失已抽取的结果
         _append_partial_result(batch_ids, batch_concepts, batch_relations)
 
-        # 【优化⑤】批次间限流保护
+        # 批次间限流保护
         if i + batch_size < len(nodes):
             delay = random.uniform(1.5, 3)
             time.sleep(delay)
@@ -254,7 +261,7 @@ def build_knowledge_concepts(resume: bool = True):
                 all_concepts.extend(record.get('concepts', []))
                 all_relations.extend(record.get('relationships', []))
 
-    # 4. 去重合并逻辑（【优化⑥】合并时拼接多条描述，而非丢弃）
+    # 4. 去重合并逻辑（合并时拼接多条描述，而非丢弃）
     print("🧹 正在进行知识点去重与合并...")
     unique_concepts = {}
     for c in all_concepts:
@@ -276,7 +283,7 @@ def build_knowledge_concepts(resume: bool = True):
             if new_desc and new_desc not in existing['description']:
                 existing['description'] = (existing['description'] + " | " + new_desc)[:500]
 
-    # 【优化③】关系幻觉校验：source/target 必须存在于 concepts 列表中
+    # 关系幻觉校验：source/target 必须存在于 concepts 列表中
     valid_concept_names = set(unique_concepts.keys())
     unique_relations = []
     seen_rels = set()
@@ -315,7 +322,7 @@ def build_knowledge_concepts(resume: bool = True):
 
 
 # ==========================================
-# 🕸️ 模块二：Neo4j 双层图谱入库（批量优化版）
+# 🕸️ 模块二：Neo4j 双层图谱入库（批量优化版 + Layer 属性）
 # ==========================================
 def upload_to_neo4j(concepts_data):
     print("\n" + "=" * 50)
@@ -328,7 +335,6 @@ def upload_to_neo4j(concepts_data):
 
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
-    # 【优化①】统一改成"一个 Session + UNWIND 批量提交"，大幅减少网络往返
     def run_unwind(query: str, batch_list: List[Dict], label: str = ""):
         if not batch_list:
             return
@@ -340,16 +346,19 @@ def upload_to_neo4j(concepts_data):
         with driver.session() as session:
             session.run(query, parameters)
 
-    # 0. 课程根节点
+    # 0. 课程根节点（素材层，layer=2）
     manifest_path = os.path.join(KG_DATA_DIR, "course_manifest.json")
     if os.path.exists(manifest_path):
         with open(manifest_path, 'r', encoding='utf-8') as f:
             manifest = json.load(f)
-        run_single("MERGE (n:Course {id: $id}) SET n.course_name = $name",
-                  {"id": manifest.get("course_id", "default_course"),
-                   "name": manifest.get("course_name", "")})
+        run_single("""
+            MERGE (n:Course {id: $id})
+            SET n.course_name = $name, n.layer = $layer
+        """, {"id": manifest.get("course_id", "default_course"),
+              "name": manifest.get("course_name", ""),
+              "layer": LAYER_MATERIAL})
 
-    # 1. 批量导入 Document / Page / Multimodal Nodes
+    # 1. 批量导入 Document / Page / Multimodal Nodes（均为素材层，layer=2）
     print("📦 [1/4] 正在批量导入底层素材节点...")
 
     with open(os.path.join(KG_DATA_DIR, "documents.json"), 'r', encoding='utf-8') as f:
@@ -357,7 +366,7 @@ def upload_to_neo4j(concepts_data):
     run_unwind("""
         UNWIND $batch AS row
         MERGE (n:Document {id: row.id})
-        SET n += row.props
+        SET n += row.props, n.layer = """ + str(LAYER_MATERIAL) + """
     """, docs, "Document 节点")
 
     with open(os.path.join(KG_DATA_DIR, "pages.json"), 'r', encoding='utf-8') as f:
@@ -365,10 +374,10 @@ def upload_to_neo4j(concepts_data):
     run_unwind("""
         UNWIND $batch AS row
         MERGE (n:Page {id: row.id})
-        SET n += row.props
+        SET n += row.props, n.layer = """ + str(LAYER_MATERIAL) + """
     """, pages, "Page 节点")
 
-    # 多模态节点按 node_type 分组批量导入（因为动态 Label 无法用参数化，需要分组）
+    # 多模态节点按 node_type 分组批量导入
     with open(os.path.join(KG_DATA_DIR, "multimodal_nodes.json"), 'r', encoding='utf-8') as f:
         all_nodes = json.load(f)
     nodes_by_type: Dict[str, List[Dict]] = {}
@@ -381,7 +390,7 @@ def upload_to_neo4j(concepts_data):
         run_unwind(f"""
             UNWIND $batch AS row
             MERGE (n:{label} {{id: row.id}})
-            SET n += row.props
+            SET n += row.props, n.layer = {LAYER_MATERIAL}
         """, batch, f"{label} 节点")
 
     # 2. 批量导入素材层关系（按 relationship_type 分组）
@@ -401,16 +410,16 @@ def upload_to_neo4j(concepts_data):
             MERGE (s)-[r:{rtype}]->(t)
         """, batch, f"{rtype} 关系")
 
-    # 3. 批量导入知识层 Concept 节点
+    # 3. 批量导入知识层 Concept 节点（layer=1）
     print("🧠 [3/4] 正在批量导入顶层知识点节点与逻辑关系...")
     concept_batch = [
         {"name": c['name'], "desc": c.get('description', '')}
         for c in concepts_data.get('concepts', [])
     ]
-    run_unwind("""
+    run_unwind(f"""
         UNWIND $batch AS row
-        MERGE (c:Concept {name: row.name})
-        SET c.description = row.desc, c.id = row.name
+        MERGE (c:Concept {{name: row.name}})
+        SET c.description = row.desc, c.id = row.name, c.layer = {LAYER_CONCEPT}
     """, concept_batch, "Concept 节点")
 
     # 知识层关系按 relation 分组批量导入
@@ -439,19 +448,23 @@ def upload_to_neo4j(concepts_data):
         MERGE (c)-[:HAS_EVIDENCE]->(m)
     """, bridge_batch, "跨层证据链接")
 
-    # 【优化⑨】最终统计报告
+    # 最终统计报告
     print("\n📊 正在生成入库质量报告...")
     with driver.session() as session:
         total_nodes = session.run("MATCH (n) RETURN count(n) AS c").single()["c"]
         total_rels = session.run("MATCH ()-[r]->() RETURN count(r) AS c").single()["c"]
         concept_count = session.run("MATCH (c:Concept) RETURN count(c) AS c").single()["c"]
         evidence_count = session.run("MATCH ()-[r:HAS_EVIDENCE]->() RETURN count(r) AS c").single()["c"]
+        layer1_count = session.run("MATCH (n) WHERE n.layer = 1 RETURN count(n) AS c").single()["c"]
+        layer2_count = session.run("MATCH (n) WHERE n.layer = 2 RETURN count(n) AS c").single()["c"]
 
     print("=" * 50)
     print(f"  图谱总节点数: {total_nodes}")
     print(f"  图谱总关系数: {total_rels}")
     print(f"  知识点(Concept)数量: {concept_count}")
     print(f"  跨层证据链接数量: {evidence_count}")
+    print(f"  Layer=1 (知识点层) 节点数: {layer1_count}")
+    print(f"  Layer=2 (素材层) 节点数: {layer2_count}")
     print("=" * 50)
 
     driver.close()
@@ -502,7 +515,7 @@ def upload_to_pinecone():
             }
         })
 
-    # 【优化⑧】分批上传，每批 100 条，避免未来数据量增长后单次请求过大
+    # 分批上传，每批 100 条，避免未来数据量增长后单次请求过大
     chunk_size = 100
     total_uploaded = 0
     for i in range(0, len(upload_batch), chunk_size):
