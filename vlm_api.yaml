@@ -24,7 +24,7 @@ vlm:
 embedding:
   enabled: true
   provider: qwen
-  api_key: "sk-ws-H.EYIIDPX.UuLf.MEUCIQDYz2WRUn562mqiULGMF87J5JkiNGlx8nCuE3kL9jxLjwIgRNRuQZrBdTm16-ePUL_mfEN7zThm_uhow_e13dNg38A"
+  api_key: ""
   model: qwen3.7-text-embedding
   base_url: https://dashscope.aliyuncs.com/api/v1
   dimension: 1024
