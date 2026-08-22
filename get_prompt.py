@@ -1,8 +1,3 @@
-# 修复一些bug
-# 优化传回的形式
-# 修复表格问题
-
-
 import os
 import json
 import yaml
@@ -211,7 +206,8 @@ PINECONE_API_KEY = os.getenv(
 
 PINECONE_INDEX_NAME = os.getenv(
     "PINECONE_INDEX_NAME",
-    "multimodal-rag-index"
+    "multimodal-rag-index-v2"
+
 )
 
 PINECONE_NAMESPACE = os.getenv(
