@@ -1,4 +1,5 @@
-# 修复bug
+# 修复一些bug
+# 优化传回的形式
 
 
 import os
@@ -6,7 +7,7 @@ import json
 import yaml
 import glob
 import requests
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from pinecone import Pinecone
 from neo4j import GraphDatabase
 
@@ -27,12 +28,10 @@ def load_env_file():
 
 load_env_file()
 
-# 路径配置
 KG_DATA_DIR = r"C:\Users\Lin\extraction\output\qwen_qwen3.7-plus_6\kg_data"
 DEBUG_IMAGES_DIR = r"C:\Users\Lin\extraction\output\qwen_qwen3.7-plus_6\debug\images"
 
 
-# 读取 YAML 配置
 def load_yaml_config():
     yaml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vlm_api.yaml")
     if not os.path.exists(yaml_path):
@@ -45,7 +44,6 @@ config = load_yaml_config()
 EMBEDDING_API_KEY = config['embedding']['api_key'] or config['vlm']['api_key']
 EMBEDDING_URL = f"{config['embedding']['base_url']}/services/embeddings/text-embedding/text-embedding"
 
-# 数据库凭证
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
 PINECONE_INDEX_NAME = "multimodal-rag-index"
 NEO4J_URI = os.getenv("NEO4J_URI", "neo4j+s://fced1671.databases.neo4j.io")
@@ -57,8 +55,6 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 # 🧠 2. 核心功能客户端
 # ==========================================
 class EmbeddingClient:
-    """调用 DashScope 获取 1024 维文本向量"""
-
     @staticmethod
     def get_embedding(text: str) -> List[float]:
         headers = {
@@ -80,8 +76,6 @@ class EmbeddingClient:
 
 
 class ImageResolver:
-    """负责将节点映射到本地真实的图片文件"""
-
     def __init__(self):
         self.doc_map = {}
         docs_path = os.path.join(KG_DATA_DIR, "documents.json")
@@ -92,23 +86,20 @@ class ImageResolver:
                     self.doc_map[d['document_id']] = d
 
     def resolve_figure_images(self, document_id: str, page_no: int) -> List[Dict[str, str]]:
-        """根据文档ID和页码，找出该页所有的图片及其增强版"""
         doc_info = self.doc_map.get(document_id, {})
         file_name = doc_info.get('file_name', '')
         file_type = doc_info.get('file_type', '')
 
         resolved_images = []
 
-        # 如果是 PPTX 且 JSON 中有 image_mapping，直接精准读取
         if file_type == 'pptx' and 'metadata' in doc_info and 'image_mapping' in doc_info['metadata']:
             mapping = doc_info['metadata']['image_mapping']
             img_paths = mapping.get(str(page_no), [])
             for path in img_paths:
                 base_path = os.path.normpath(path)
-                # 检查是否有增强版
                 enhance_path = base_path.replace(".png", "_enhanced.png").replace(".jpeg", "_enhanced.jpeg")
                 if not os.path.exists(enhance_path):
-                    enhance_path = base_path.replace(".png", "_enhance.png")  # 兼容不同命名习惯
+                    enhance_path = base_path.replace(".png", "_enhance.png")
 
                 resolved_images.append({
                     "original": base_path if os.path.exists(base_path) else None,
@@ -116,14 +107,11 @@ class ImageResolver:
                 })
             return resolved_images
 
-        # 如果是 PDF 或没有 mapping，使用 glob 模糊匹配
         if file_name:
-            # 匹配模式：课件名_p页码_img*.* 或 课件名_slide_页码_img*.*
             search_pattern1 = os.path.join(DEBUG_IMAGES_DIR, f"{file_name}*p{page_no}_img*.*")
             search_pattern2 = os.path.join(DEBUG_IMAGES_DIR, f"{file_name}*slide_{page_no}_img*.*")
 
             all_matches = glob.glob(search_pattern1) + glob.glob(search_pattern2)
-            # 过滤掉已经是 enhanced 的文件，避免重复计算
             base_matches = [m for m in all_matches if "enhance" not in m.lower() and not m.endswith(".json")]
 
             for base_path in base_matches:
@@ -141,8 +129,6 @@ class ImageResolver:
 
 
 class GraphRetriever:
-    """Neo4j 图谱查询客户端"""
-
     def __init__(self):
         self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
@@ -150,7 +136,6 @@ class GraphRetriever:
         self.driver.close()
 
     def get_page_context(self, page_id: str, expand_depth: int) -> Dict[str, Any]:
-        """获取指定 Page 的完整上下文（包含素材和 N 层知识点）"""
         context = {
             "page_info": {},
             "multimodal_materials": [],
@@ -158,12 +143,10 @@ class GraphRetriever:
         }
 
         with self.driver.session() as session:
-            # 1. 获取 Page 基本信息
             page_res = session.run("MATCH (p:Page {id: $pid}) RETURN p", pid=page_id).single()
             if page_res:
                 context["page_info"] = dict(page_res["p"].items())
 
-            # 2. 获取该 Page 下辖的所有多模态素材节点 (修复：使用 source_page_id)
             mat_res = session.run("""
                 MATCH (m) 
                 WHERE m.source_page_id = $pid AND NOT 'Page' IN labels(m) AND NOT 'Document' IN labels(m)
@@ -175,9 +158,7 @@ class GraphRetriever:
                 node_data["_node_type"] = record["type"]
                 context["multimodal_materials"].append(node_data)
 
-            # 3. 拓展知识点（N 层 BFS）
             if expand_depth > 0:
-                # 修复：知识点可能挂在素材节点(source_page_id)上，也可能直接挂在Page节点(id)上
                 kg_query = f"""
                     MATCH (m)
                     WHERE m.source_page_id = $pid OR m.id = $pid
@@ -192,12 +173,10 @@ class GraphRetriever:
                 seen_rels = set()
 
                 for record in kg_res:
-                    # 记录起点 Concept
                     sc = record["start_c"]
                     if sc and sc["name"] not in concepts_dict:
                         concepts_dict[sc["name"]] = dict(sc.items())
 
-                    # 解析路径中的节点和关系
                     path = record["path"]
                     if path:
                         for node in path.nodes:
@@ -222,65 +201,40 @@ class GraphRetriever:
 
 
 # ==========================================
-# 🚀 3. 顶层流水线组装
+# 🚀 3. 检索与 Prompt 组装流水线
 # ==========================================
-def retrieve_materials(query: str, vector_top_k: int = 10, page_top_k: int = 3, concept_expand_depth: int = 2) -> Dict[str, Any]:
-    """
-    检索并打包所有相关素材（不调用 VLM 生成答案）
-
-    :param query: 用户查询的问题
-    :param vector_top_k: Pinecone 向量检索召回的初始候选节点数（扩大候选集）
-    :param page_top_k: 最终保留的独立页面数量（按页去重截断）
-    :param concept_expand_depth: 知识点图谱向外拓展的层数 (1表示只查直接关联的知识点，2表示再拓展一层关系)
-    :return: 结构化的素材包字典
-    """
+def retrieve_materials(query: str, vector_top_k: int = 10, page_top_k: int = 3, concept_expand_depth: int = 2) -> Dict[
+    str, Any]:
     print(f"🔍 正在为查询生成素材包: '{query}'")
-
-    # 1. 向量化 Query
-    print("  [1/4] 正在调用 DashScope 获取 Query 向量...")
     query_vector = EmbeddingClient.get_embedding(query)
 
-    # 2. Pinecone 检索 (扩大候选集)
-    print(f"  [2/4] 正在 Pinecone 中检索 Top-{vector_top_k} 候选向量节点...")
     pc = Pinecone(api_key=PINECONE_API_KEY)
     index = pc.Index(PINECONE_INDEX_NAME)
     search_res = index.query(vector=query_vector, top_k=vector_top_k, include_metadata=True)
 
-    # 提取命中的 page_id (按页去重截断)
     hit_page_ids = set()
     for match in search_res['matches']:
         meta = match.get('metadata', {})
-        # 如果命中本身就是 Page，直接取 node_id；如果是素材，取其 page_id
         pid = meta.get('page_id') or (meta.get('node_id') if meta.get('node_type') == 'Page' else None)
         if pid:
             hit_page_ids.add(pid)
-            # 达到期望的独立页面数量后提前结束
             if len(hit_page_ids) >= page_top_k:
                 break
 
-    print(f"  -> 从 {len(search_res['matches'])} 个候选向量中，成功截取 {len(hit_page_ids)} 个独立页面 (Pages)")
-
-    # 3. Neo4j 图谱反查与拓展
-    print(f"  [3/4] 正在 Neo4j 中反查多模态素材并拓展 {concept_expand_depth} 层知识点...")
     graph_client = GraphRetriever()
     image_resolver = ImageResolver()
 
     final_package = {
         "query": query,
-        "parameters": {
-            "vector_top_k": vector_top_k,
-            "page_top_k": page_top_k,
-            "concept_expand_depth": concept_expand_depth
-        },
+        "parameters": {"vector_top_k": vector_top_k, "page_top_k": page_top_k,
+                       "concept_expand_depth": concept_expand_depth},
         "pages": []
     }
 
     for pid in hit_page_ids:
-        # 获取图谱上下文
         context = graph_client.get_page_context(pid, expand_depth=concept_expand_depth)
         page_info = context["page_info"]
 
-        # 4. 解析图片物理路径
         resolved_images = []
         if "document_id" in page_info and "page_no" in page_info:
             resolved_images = image_resolver.resolve_figure_images(
@@ -288,7 +242,6 @@ def retrieve_materials(query: str, vector_top_k: int = 10, page_top_k: int = 3, 
                 page_no=page_info["page_no"]
             )
 
-        # 组装单页数据
         page_package = {
             "page_id": pid,
             "document_id": page_info.get("document_id"),
@@ -302,19 +255,109 @@ def retrieve_materials(query: str, vector_top_k: int = 10, page_top_k: int = 3, 
         final_package["pages"].append(page_package)
 
     graph_client.close()
-    print("  [4/4] ✅ 素材包组装完成！")
-
     return final_package
+
+
+def build_vlm_prompt(retrieved_data: Dict[str, Any]) -> Tuple[str, List[str]]:
+    """
+    将检索到的 JSON 素材包“拍扁”，转换为大模型易于理解的 Markdown 纯文本。
+    包含详细的节点定义、关系解释和多模态素材。
+    """
+    query = retrieved_data["query"]
+    pages = retrieved_data["pages"]
+
+    # 1. 提取去重的知识点定义与关系
+    concepts_map = {}
+    relations_set = set()
+
+    for page in pages:
+        # 收集节点定义
+        for concept in page["knowledge_graph"]["concepts"]:
+            name = concept["name"]
+            desc = concept.get("description", "").strip()
+            if name not in concepts_map and desc:
+                concepts_map[name] = desc
+
+        # 收集关系解释
+        for rel in page["knowledge_graph"]["relations"]:
+            source = rel['source']
+            target = rel['target']
+            rel_type = rel['relation_type']
+            desc = rel.get('description', '').strip()
+
+            # 格式化关系描述
+            relation_str = f"- **{source}** ➔ **{target}** ({rel_type}): {desc}"
+            relations_set.add(relation_str)
+
+    # 组装图谱文本
+    kg_text = "### 1. 核心概念定义\n"
+    if concepts_map:
+        for name, desc in concepts_map.items():
+            kg_text += f"- **{name}**: {desc}\n"
+    else:
+        kg_text += "无核心概念定义。\n"
+
+    kg_text += "\n### 2. 概念间逻辑关系\n"
+    if relations_set:
+        kg_text += "\n".join(relations_set) + "\n"
+    else:
+        kg_text += "无相关概念逻辑。\n"
+
+    # 2. 提取多模态素材文本与图片路径
+    materials_text = ""
+    image_paths = []
+    img_counter = 1
+
+    for i, page in enumerate(pages):
+        materials_text += f"### 📄 参考页面 {i + 1} (文档: {page['document_id']}, 第 {page['page_no']} 页)\n"
+
+        # 提取该页的文本块、表格、代码等
+        for node in page["multimodal_nodes"]:
+            node_type = node.get("_node_type", "Unknown")
+            desc = node.get("description", "").strip()
+            if not desc:
+                continue
+
+            if node_type == "TextChunk":
+                materials_text += f"**[文本]**: {desc}\n\n"
+            elif node_type == "Table":
+                materials_text += f"**[表格数据]**: {desc}\n\n"
+            elif node_type == "CodeBlock":
+                materials_text += f"**[代码片段]**: {desc}\n\n"
+            elif node_type == "Figure":
+                materials_text += f"**[图片说明]**: {desc} *(对应输入图片 {img_counter})*\n\n"
+                img_counter += 1  # 仅用于占位提示
+
+        # 收集该页的真实图片路径
+        for img in page["resolved_images"]:
+            path = img.get("enhanced") or img.get("original")
+            if path and os.path.exists(path):
+                image_paths.append(path)
+
+    # 3. 组装最终 Prompt
+    final_prompt = f"""你是一个专业的机电系统教学助手。请根据以下提供的【知识图谱逻辑】和【参考素材】，准确、清晰地回答用户的问题。
+
+## 🧠 知识图谱支持
+{kg_text}
+---
+## 📚 参考课件素材 (包含文本、表格与图片说明)
+{materials_text if materials_text else "无相关参考素材。"}
+---
+## 🗣️ 用户问题
+**{query}**
+
+请综合上述信息给出解答："""
+
+    return final_prompt, image_paths
 
 
 # ==========================================
 # 🧪 4. 本地测试入口
 # ==========================================
 if __name__ == "__main__":
-    # 测试查询
     test_query = "步进电机驱动器的工作原理是什么？"
 
-    # 调用检索函数 (候选向量取 10，最终保留 2 个页面)
+    # 1. 检索素材
     materials = retrieve_materials(
         query=test_query,
         vector_top_k=10,
@@ -322,14 +365,17 @@ if __name__ == "__main__":
         concept_expand_depth=2
     )
 
-    # 打印结果预览
-    print("\n" + "=" * 50)
-    print("📦 最终素材包结构预览:")
-    print("=" * 50)
-    print(json.dumps(materials, ensure_ascii=False, indent=2))
+    # 2. 组装 Prompt
+    prompt_text, image_paths = build_vlm_prompt(materials)
 
-    # 将完整结果保存到本地以便检查
-    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "retrieved_materials_debug.json")
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(materials, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 完整素材包已保存至: {output_path}")
+    # 3. 打印最终喂给大模型的内容
+    print("\n" + "=" * 60)
+    print("🤖 最终喂给大模型的 Prompt 如下：")
+    print("=" * 60)
+    print(prompt_text)
+
+    print("\n" + "=" * 60)
+    print("🖼️ 需要随 Prompt 一起上传给 VLM 的图片路径：")
+    print("=" * 60)
+    for idx, path in enumerate(image_paths, 1):
+        print(f"图片 {idx}: {path}")
