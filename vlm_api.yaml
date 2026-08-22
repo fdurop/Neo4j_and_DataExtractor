@@ -1,0 +1,35 @@
+# GitHub-safe API configuration template for the extraction pipeline.
+# The model names and endpoints below match the currently verified runtime.
+# Copy this file to vlm_api.yaml and fill api_key only in the local copy.
+
+vlm:
+  enabled: true
+  provider: qwen
+  api_key: ""
+  model: qwen3.7-plus
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+  timeout_seconds: 120
+  retry_count: 2
+  max_tokens: 700
+  formula_max_tokens: 2000
+  table_max_tokens: 1500
+  table_timeout_seconds: 150
+  table_retry_count: 1
+  temperature: 0.1
+  image_detail: auto
+  enable_thinking: false
+
+# Dedicated semantic-vector API verified with 1024-dimensional output.
+# If api_key is empty, vlm.api_key is reused.
+embedding:
+  enabled: true
+  provider: qwen
+  api_key: "sk-ws-H.EYIIDPX.UuLf.MEUCIQDYz2WRUn562mqiULGMF87J5JkiNGlx8nCuE3kL9jxLjwIgRNRuQZrBdTm16-ePUL_mfEN7zThm_uhow_e13dNg38A"
+  model: qwen3.7-text-embedding
+  base_url: https://dashscope.aliyuncs.com/api/v1
+  dimension: 1024
+  batch_size: 10
+  timeout_seconds: 120
+  retry_count: 2
+  output_type: dense
+  query_instruction: "Retrieve relevant evidence from Chinese educational course materials."
