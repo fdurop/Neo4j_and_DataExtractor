@@ -1,3 +1,6 @@
+# 修复bug
+
+
 import os
 import json
 import yaml
@@ -160,10 +163,10 @@ class GraphRetriever:
             if page_res:
                 context["page_info"] = dict(page_res["p"].items())
 
-            # 2. 获取该 Page 下辖的所有多模态素材节点
+            # 2. 获取该 Page 下辖的所有多模态素材节点 (修复：使用 source_page_id)
             mat_res = session.run("""
                 MATCH (m) 
-                WHERE m.page_id = $pid AND NOT 'Page' IN labels(m) AND NOT 'Document' IN labels(m)
+                WHERE m.source_page_id = $pid AND NOT 'Page' IN labels(m) AND NOT 'Document' IN labels(m)
                 RETURN labels(m)[0] AS type, m
             """, pid=page_id)
 
@@ -174,10 +177,11 @@ class GraphRetriever:
 
             # 3. 拓展知识点（N 层 BFS）
             if expand_depth > 0:
-                # 构建变长路径查询：从素材节点出发，通过 HAS_EVIDENCE 找到 Concept，再在 Concept 之间拓展 depth-1 层
-                # 因为 HAS_EVIDENCE 是 (Concept)->(Material)，所以方向是 <-[:HAS_EVIDENCE]-
+                # 修复：知识点可能挂在素材节点(source_page_id)上，也可能直接挂在Page节点(id)上
                 kg_query = f"""
-                    MATCH (m {{page_id: $pid}})<-[:HAS_EVIDENCE]-(start_c:Concept)
+                    MATCH (m)
+                    WHERE m.source_page_id = $pid OR m.id = $pid
+                    MATCH (m)<-[:HAS_EVIDENCE]-(start_c:Concept)
                     OPTIONAL MATCH path = (start_c)-[*0..{expand_depth - 1}]-(related_c:Concept)
                     RETURN start_c, path
                 """
@@ -220,12 +224,13 @@ class GraphRetriever:
 # ==========================================
 # 🚀 3. 顶层流水线组装
 # ==========================================
-def retrieve_materials(query: str, top_k: int = 3, concept_expand_depth: int = 2) -> Dict[str, Any]:
+def retrieve_materials(query: str, vector_top_k: int = 10, page_top_k: int = 3, concept_expand_depth: int = 2) -> Dict[str, Any]:
     """
     检索并打包所有相关素材（不调用 VLM 生成答案）
 
     :param query: 用户查询的问题
-    :param top_k: 向量检索召回的 Top-K 节点数
+    :param vector_top_k: Pinecone 向量检索召回的初始候选节点数（扩大候选集）
+    :param page_top_k: 最终保留的独立页面数量（按页去重截断）
     :param concept_expand_depth: 知识点图谱向外拓展的层数 (1表示只查直接关联的知识点，2表示再拓展一层关系)
     :return: 结构化的素材包字典
     """
@@ -235,13 +240,13 @@ def retrieve_materials(query: str, top_k: int = 3, concept_expand_depth: int = 2
     print("  [1/4] 正在调用 DashScope 获取 Query 向量...")
     query_vector = EmbeddingClient.get_embedding(query)
 
-    # 2. Pinecone 检索
-    print(f"  [2/4] 正在 Pinecone 中检索 Top-{top_k} 相关节点...")
+    # 2. Pinecone 检索 (扩大候选集)
+    print(f"  [2/4] 正在 Pinecone 中检索 Top-{vector_top_k} 候选向量节点...")
     pc = Pinecone(api_key=PINECONE_API_KEY)
     index = pc.Index(PINECONE_INDEX_NAME)
-    search_res = index.query(vector=query_vector, top_k=top_k, include_metadata=True)
+    search_res = index.query(vector=query_vector, top_k=vector_top_k, include_metadata=True)
 
-    # 提取命中的 page_id (去重)
+    # 提取命中的 page_id (按页去重截断)
     hit_page_ids = set()
     for match in search_res['matches']:
         meta = match.get('metadata', {})
@@ -249,8 +254,11 @@ def retrieve_materials(query: str, top_k: int = 3, concept_expand_depth: int = 2
         pid = meta.get('page_id') or (meta.get('node_id') if meta.get('node_type') == 'Page' else None)
         if pid:
             hit_page_ids.add(pid)
+            # 达到期望的独立页面数量后提前结束
+            if len(hit_page_ids) >= page_top_k:
+                break
 
-    print(f"  -> 命中 {len(hit_page_ids)} 个不同的页面 (Pages)")
+    print(f"  -> 从 {len(search_res['matches'])} 个候选向量中，成功截取 {len(hit_page_ids)} 个独立页面 (Pages)")
 
     # 3. Neo4j 图谱反查与拓展
     print(f"  [3/4] 正在 Neo4j 中反查多模态素材并拓展 {concept_expand_depth} 层知识点...")
@@ -259,7 +267,11 @@ def retrieve_materials(query: str, top_k: int = 3, concept_expand_depth: int = 2
 
     final_package = {
         "query": query,
-        "parameters": {"top_k": top_k, "concept_expand_depth": concept_expand_depth},
+        "parameters": {
+            "vector_top_k": vector_top_k,
+            "page_top_k": page_top_k,
+            "concept_expand_depth": concept_expand_depth
+        },
         "pages": []
     }
 
@@ -302,14 +314,18 @@ if __name__ == "__main__":
     # 测试查询
     test_query = "步进电机驱动器的工作原理是什么？"
 
-    # 调用检索函数 (设置 Top-K 为 2，知识点拓展 2 层)
-    materials = retrieve_materials(query=test_query, top_k=2, concept_expand_depth=2)
+    # 调用检索函数 (候选向量取 10，最终保留 2 个页面)
+    materials = retrieve_materials(
+        query=test_query,
+        vector_top_k=10,
+        page_top_k=2,
+        concept_expand_depth=2
+    )
 
     # 打印结果预览
     print("\n" + "=" * 50)
     print("📦 最终素材包结构预览:")
     print("=" * 50)
-    # print(json.dumps(materials, ensure_ascii=False, indent=2)[:1500] + "\n\n... [内容已截断] ...")
     print(json.dumps(materials, ensure_ascii=False, indent=2))
 
     # 将完整结果保存到本地以便检查
