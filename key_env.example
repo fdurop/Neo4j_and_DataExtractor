@@ -1,0 +1,11 @@
+# Pinecone 向量数据库配置
+PINECONE_API_KEY="your-pinecone-api-key-here"
+
+# DeepSeek 配置
+DEEPSEEK_API_KEY="your-deepseek-api-key-here"
+DEEPSEEK_BASE_URL="https://api.deepseek.com"
+
+# Neo4j 图数据库配置
+NEO4J_URI="neo4j+s://your-instance-id.databases.neo4j.io"
+NEO4J_USER="neo4j"
+NEO4J_PASSWORD="your-neo4j-password"
