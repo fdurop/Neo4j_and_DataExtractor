@@ -158,20 +158,13 @@ DEFAULT_DATA_VERSION = os.getenv(
 # ============================================================
 # 3. 图谱常量
 # ============================================================
-# 升级说明：
-#   旧方案 LAYER_MATERIAL = 2 / LAYER_CONCEPT = 1
-#   新方案：
-#       素材层（Course/Document/Page/Material）统一 layer = 0
-#       知识层 Concept 的 layer 不再是单一常量，
-#       而是在后处理阶段按重要性打分落到 {1, 2, 3}。
 LAYER_MATERIAL = 0
 
-# 知识层 tier 取值集合，供入库、查询、导出统一引用。
 CONCEPT_LAYERS = (1, 2, 3)
 
-LAYER_CORE = 1        # 核心知识点
-LAYER_SECONDARY = 2   # 附属知识点
-LAYER_LEAF = 3        # 琐碎 / 叶子知识点
+LAYER_CORE = 1
+LAYER_SECONDARY = 2
+LAYER_LEAF = 3
 
 ALLOWED_RELATION_TYPES = {
     "IS_A",
@@ -231,21 +224,37 @@ RELATION_BASE_WEIGHTS = {
 }
 
 # ------------------------------------------------------------
-# 新增：Tier 打分与元数据过滤所需的规则常量
+# 改动 1：_LABEL_LIKE_PATTERN 正则扩展
+# 新增四段匹配：
+#   ① 字母+数字（原有）：D5、A1、IN3、PB2
+#   ② 数字+字母：0V、5V、3V3
+#   ③ 字母+符号结尾：DC+、A-、V+
+#   ④ 纯2~4位大写字母缩写：GND、COM、NC、NO、VCC
+# 白名单：PID、PWM、USB 等正经概念不受惩罚。
 # ------------------------------------------------------------
-# 纯字母数字标签（如 D5、A1、IN3、PB2）命中则大幅减分。
 _LABEL_LIKE_PATTERN = re.compile(
-    r"^[A-Za-z]{1,4}[-_]?\d{1,4}$"
+    r"^("
+    r"[A-Za-z]{1,4}[-_]?\d{1,4}"       # D5、A1、IN3、PB2
+    r"|\d{1,2}[A-Za-z]{1,3}"           # 0V、5V、3V3
+    r"|[A-Za-z]{1,4}[+\-]"             # DC+、A-、V+
+    r"|[A-Z]{2,4}"                     # GND、COM、NC、NO、VCC
+    r")$"
 )
 
-# category 弱信号。
+# 白名单：命中正则但属于正经概念，不施加惩罚。
+_LABEL_PATTERN_WHITELIST: Set[str] = {
+    "PID", "PWM", "USB", "SPI", "I2C", "CAN",
+    "ADC", "DAC", "DMA", "MCU", "CPU", "GPU",
+    "ROM", "RAM", "RTC", "IRQ", "ISR", "API",
+    "SDK", "HAL", "BSP", "PCB", "EMC", "EMI",
+    "ESD", "FFT", "PLL", "VCO", "LDO", "MOSFET",
+}
+
 _CATEGORY_POSITIVE = {"原理", "方法", "设备", "现象"}
 _CATEGORY_NEGATIVE = {"引脚", "参数", "信号"}
 
-# 参数类关系判定：命中则父子边使用 HAS_PARAMETER。
 _PARAMETER_CATEGORY_HINTS = {"参数", "引脚"}
 
-# 步骤类序数词提示（阶段 D 可选增强）。
 _STEP_ORDER_HINTS = [
     ("第一步", 1), ("第二步", 2), ("第三步", 3),
     ("第四步", 4), ("第五步", 5), ("第六步", 6),
@@ -293,12 +302,10 @@ class _PipelineConfig:
     max_relations_per_pair: int
     page_node_batch_size: int
 
-    # -------- 新增：元数据过滤 --------
     metadata_similarity_threshold: float
     metadata_safe_evidence_count: int
     metadata_safe_page_count: int
 
-    # -------- 新增：Tier 打分 --------
     tier_weight_evidence: float
     tier_weight_doc_breadth: float
     tier_weight_page_breadth: float
@@ -308,7 +315,6 @@ class _PipelineConfig:
     tier_threshold_core: float
     tier_threshold_secondary: float
 
-    # -------- 新增：父子挂靠 --------
     parent_overlap_threshold: float
 
     @property
@@ -1104,9 +1110,6 @@ page_no：{page_no}
 """
 
 
-# ------------------------------------------------------------
-# 新增：改动点 1 —— 非概念元数据过滤（含安全阀）
-# ------------------------------------------------------------
 def _is_non_concept_metadata(
         canonical_name: str,
         evidence_count: int,
@@ -1114,14 +1117,6 @@ def _is_non_concept_metadata(
         formal_data: Dict[str, Any],
         config: _PipelineConfig
 ) -> Tuple[bool, str]:
-    """
-    单页初筛：判断某个概念名是否只是课程名/文档名/页面标题的回声。
-
-    返回 (是否判定为元数据, 判定原因)。
-
-    安全阀：即使名称与标题高度相似，只要单页内已积累足够 evidence，
-    仍放行。真正的跨页复核放在合并后（见 _recover_cross_page_metadata）。
-    """
     manifest = formal_data.get("manifest", {})
     page = task.get("page", {})
 
@@ -1133,7 +1128,6 @@ def _is_non_concept_metadata(
         page.get("document_name")
     ])
 
-    # 文档名（按 page.document_id 反查）。
     document_id = _normalize_text(page.get("document_id"))
 
     if document_id:
@@ -1164,13 +1158,13 @@ def _is_non_concept_metadata(
     if best_similarity < config.metadata_similarity_threshold:
         return False, ""
 
-    # 命中相似度阈值 —— 检查安全阀。
     if evidence_count >= config.metadata_safe_evidence_count:
         return False, "saved_by_evidence"
 
     return True, (
         f"similar_to_title(sim={best_similarity:.2f})"
     )
+
 
 def _relation_quality_score(
         relationship: Dict[str, Any]
@@ -1308,7 +1302,6 @@ def _validate_page_result(
             print(f"  ⚠️ 删除无有效证据概念：{name}")
             continue
 
-        # ---- 改动点 1：非概念元数据过滤（单页初筛，含安全阀）----
         is_metadata, reason = _is_non_concept_metadata(
             name,
             len(evidence_ids),
@@ -1971,6 +1964,10 @@ def _synthesize_descriptions(
     return result
 
 
+# ------------------------------------------------------------
+# 改动 3：_merge_duplicate_relationships
+# 新增 auto_generated 字段：只要 group 中有一条为 True 则为 True
+# ------------------------------------------------------------
 def _merge_duplicate_relationships(
         relationships: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
@@ -2009,6 +2006,13 @@ def _merge_duplicate_relationships(
             )
         ])
 
+        # 改动 3：保留 auto_generated 标记
+        # 只要 group 里有一条是自动挂靠生成的，合并后仍标记为 True
+        is_auto_generated = any(
+            item.get("auto_generated", False)
+            for item in group
+        )
+
         result.append({
             "source": source,
             "target": target,
@@ -2024,11 +2028,11 @@ def _merge_duplicate_relationships(
             ),
             "base_weight": RELATION_BASE_WEIGHTS.get(
                 relation_type, 0.35
-            )
+            ),
+            "auto_generated": is_auto_generated
         })
 
     return result
-
 
 def _remap_relationships(
         relationships: List[Dict[str, Any]],
@@ -2100,7 +2104,9 @@ def _remap_relationships(
             "source_page_ids": _unique_strings(
                 relationship.get("source_page_ids")
             ),
-            "confidence": confidence
+            "confidence": confidence,
+            # LLM 抽取的关系，auto_generated 固定为 False
+            "auto_generated": False
         })
 
     result = _merge_duplicate_relationships(result)
@@ -2111,26 +2117,16 @@ def _remap_relationships(
 
 
 # ============================================================
-# 9B. 新增：跨页元数据复核 + Tier 打分 + 父子挂靠
+# 9B. 跨页元数据复核 + Tier 打分 + 父子挂靠
 # ============================================================
 def _recover_cross_page_metadata(
         concepts: List[Dict[str, Any]],
         metadata_filter_log: List[Dict[str, Any]],
         config: _PipelineConfig
 ) -> int:
-    """
-    合并后复核：单页初筛丢掉的元数据名，
-    如果在合并后的正式概念里确实跨多页、证据充分，允许复活。
-
-    由于被丢弃的概念本身没进 concepts，这里做的是"标记复活提示"，
-    真正复活的语义体现在：这些名字如果作为别名或后续再次抽取时不再被误杀。
-    当前实现只统计有多少条过滤记录满足复活条件，写入报告，
-    不强行重建概念（重建需要重新抽取，成本过高）。
-    """
     if not metadata_filter_log:
         return 0
 
-    # 统计每个被过滤名字在日志里跨了几页。
     page_count_by_name = defaultdict(set)
 
     for record in metadata_filter_log:
@@ -2167,12 +2163,6 @@ def _compute_concept_layer(
         formal_data: Dict[str, Any],
         config: _PipelineConfig
 ) -> Dict[str, int]:
-    """
-    阶段 A：纯规则打分，把每个概念分箱到 layer ∈ {1, 2, 3}。
-
-    直接在 concept 上写入 layer 字段，并返回分布统计。
-    """
-    # 页面 → 文档 映射，用于计算跨文档广度。
     page_to_document = {}
 
     for page in formal_data.get("pages", []):
@@ -2220,7 +2210,11 @@ def _compute_concept_layer(
             concept.get("canonical_name")
         )
 
-        if _LABEL_LIKE_PATTERN.match(name):
+        # 改动 1：使用扩展后的正则 + 白名单豁免
+        if (
+            _LABEL_LIKE_PATTERN.match(name)
+            and name.upper() not in _LABEL_PATTERN_WHITELIST
+        ):
             score -= config.tier_label_penalty
 
         category = _normalize_text(
@@ -2263,11 +2257,6 @@ def _evidence_overlap(
         child_evidence: Set[str],
         parent_evidence: Set[str]
 ) -> Tuple[float, Set[str]]:
-    """
-    以子节点证据为分母的包含度（Containment Ratio）。
-
-    返回 (overlap, 交集)。
-    """
     if not child_evidence:
         return 0.0, set()
 
@@ -2276,20 +2265,18 @@ def _evidence_overlap(
     return overlap, intersection
 
 
+# ------------------------------------------------------------
+# 改动 2：_link_parents_for_tier
+# PART_OF → HAS_PART（父节点包含子节点，方向正确）
+# ------------------------------------------------------------
 def _link_parents_for_tier(
         child_concepts: List[Dict[str, Any]],
         parent_pool: List[Dict[str, Any]],
         config: _PipelineConfig
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """
-    单一父节点挂靠（argmax）。
-
-    返回 (自动挂靠边列表, 未匹配到父节点的孤儿列表)。
-    """
     auto_relations = []
     orphans = []
 
-    # 预先把父池的证据集合缓存成 set。
     parent_evidence_cache = [
         (
             parent,
@@ -2337,7 +2324,8 @@ def _link_parents_for_tier(
         if child_category in _PARAMETER_CATEGORY_HINTS:
             relation_type = "HAS_PARAMETER"
         else:
-            relation_type = "PART_OF"
+            # 改动 2：修正为 HAS_PART（父→子，语义正确）
+            relation_type = "HAS_PART"
 
         auto_relations.append({
             "source": best_parent["canonical_name"],
@@ -2363,28 +2351,19 @@ def _link_concept_parents(
         concepts: List[Dict[str, Any]],
         config: _PipelineConfig
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    阶段 B1 + B2 + C。
-
-    返回 (全部自动挂靠边, 孤儿提升数量)。
-    """
     tier1 = [c for c in concepts if c.get("layer") == 1]
     tier2 = [c for c in concepts if c.get("layer") == 2]
     tier3 = [c for c in concepts if c.get("layer") == 3]
 
-    # ---- 阶段 B1：tier2 → tier1 ----
     relations_b1, _ = _link_parents_for_tier(
         tier2, tier1, config
     )
 
-    # ---- 阶段 B2：tier3 → (tier1 ∪ B1 后的 tier2) ----
-    # 候选池固定为 B1 跑完之后的状态（tier2 本身不变，只是父边已定）。
     parent_pool_b2 = tier1 + tier2
     relations_b2, orphans = _link_parents_for_tier(
         tier3, parent_pool_b2, config
     )
 
-    # ---- 阶段 C：孤儿提升为 layer=2（单次，不回溯）----
     promoted = 0
 
     for orphan in orphans:
@@ -2407,10 +2386,6 @@ def _infer_step_order(
         auto_relations: List[Dict[str, Any]],
         concepts: List[Dict[str, Any]]
 ) -> None:
-    """
-    阶段 D（可选）：从子节点 description 里抓序数词，
-    给自动挂靠边补 order 字段。抓不到就不设置。
-    """
     description_by_name = {
         c["canonical_name"]: _normalize_text(
             c.get("description")
@@ -2426,6 +2401,7 @@ def _infer_step_order(
             if hint in text:
                 relation["order"] = order_value
                 break
+
 
 # ============================================================
 # 10. 构建知识层
@@ -2495,7 +2471,6 @@ def _build_knowledge_layer(
         f"\n🧠 共生成 {len(tasks)} 个页面级知识抽取任务。"
     )
 
-    # 元数据过滤日志（改动点 1 + 跨页复核共用）。
     metadata_filter_log: List[Dict[str, Any]] = []
 
     for task_index, task in enumerate(tasks, start=1):
@@ -2602,7 +2577,6 @@ def _build_knowledge_layer(
         merged_concepts
     )
 
-    # ---- 新增：跨页元数据复核（合并后二次核查）----
     print("🔁 跨页元数据复核……")
     recovered_metadata_count = _recover_cross_page_metadata(
         final_concepts,
@@ -2610,7 +2584,6 @@ def _build_knowledge_layer(
         config
     )
 
-    # ---- 新增：阶段 A —— Tier 打分，写入 layer ----
     print("🏷️ 阶段 A：Tier 打分……")
     layer_distribution = _compute_concept_layer(
         final_concepts,
@@ -2618,23 +2591,19 @@ def _build_knowledge_layer(
         config
     )
 
-    # ---- 新增：阶段 B1/B2/C —— 父子挂靠 + 孤儿提升 ----
     print("🔗 阶段 B/C：父子挂靠……")
     auto_relations, orphan_promoted_count = (
         _link_concept_parents(final_concepts, config)
     )
 
-    # ---- 新增：阶段 D —— 步骤顺序推断（可选）----
     _infer_step_order(auto_relations, final_concepts)
 
-    # 挂靠可能把 tier3 孤儿提升为 tier2，重算最终分布。
     layer_distribution = {1: 0, 2: 0, 3: 0}
     for concept in final_concepts:
         layer_distribution[
             concept.get("layer", LAYER_LEAF)
         ] += 1
 
-    # ---- 原有：LLM 关系重映射 ----
     final_relationships = _remap_relationships(
         raw_relationships,
         exact_mapping,
@@ -2643,7 +2612,6 @@ def _build_knowledge_layer(
         config
     )
 
-    # ---- 新增：阶段 E —— 合并自动挂靠边，走统一裁剪 ----
     print("🧩 阶段 E：合并自动挂靠边……")
     valid_names = {
         c["canonical_name"] for c in final_concepts
@@ -2696,7 +2664,6 @@ def _build_knowledge_layer(
         "concept_count": len(final_concepts),
         "raw_relationship_count": len(raw_relationships),
         "relationship_count": len(final_relationships),
-        # ---- 新增质量报告字段 ----
         "layer_distribution": {
             str(k): v for k, v in layer_distribution.items()
         },
@@ -2704,7 +2671,8 @@ def _build_knowledge_layer(
             r for r in metadata_filter_log
             if not r.get("recover_hint")
         ]),
-        "metadata_filter_saved_count": (
+        # P2 改动：字段名更明确，避免误读为"已救回图里"
+        "metadata_filter_should_have_saved_count": (
             recovered_metadata_count
         ),
         "auto_parented_count": auto_parented_count,
@@ -2726,17 +2694,6 @@ def _upload_to_neo4j(
     knowledge_data: Dict[str, Any],
     config: _PipelineConfig
 ) -> Dict[str, Any]:
-    """
-    将素材层和知识层写入 Neo4j。
-
-    图层约定（升级后）：
-        素材层 Course/Document/Page/Material：layer = 0
-        知识层 Concept：layer ∈ {1, 2, 3}，逐概念按 tier 打分写入。
-
-    本函数不会清空 Neo4j，只使用 MERGE 和 SET 写入。
-    Concept.source_page_ids 仅用于查询加速，
-    HAS_EVIDENCE 才是权威证据结构。
-    """
     if not config.neo4j_uri:
         raise ValueError("未找到 NEO4J_URI。")
 
@@ -2785,9 +2742,9 @@ def _upload_to_neo4j(
     try:
         driver.verify_connectivity()
 
-        # ====================================================
+        # ==================================================
         # 11.1 创建约束和索引
-        # ====================================================
+        # ==================================================
         print("🧱 [1/7] 创建约束和索引……")
 
         schema_queries = [
@@ -2865,9 +2822,9 @@ def _upload_to_neo4j(
                 """
             )
 
-        # ====================================================
+        # ==================================================
         # 11.2 Course 与 Document
-        # ====================================================
+        # ==================================================
         print("📚 [2/7] 写入 Course 和 Document……")
 
         manifest = formal_data["manifest"]
@@ -2947,9 +2904,9 @@ def _upload_to_neo4j(
             "Course→Document"
         )
 
-        # ====================================================
+        # ==================================================
         # 11.3 Page 与素材节点
-        # ====================================================
+        # ==================================================
         print("📄 [3/7] 写入 Page 和多模态素材节点……")
 
         page_rows = []
@@ -3112,9 +3069,9 @@ def _upload_to_neo4j(
             "Page→素材节点"
         )
 
-        # ====================================================
+        # ==================================================
         # 11.4 正式素材层关系
-        # ====================================================
+        # ==================================================
         print("🔗 [4/7] 写入正式素材层关系……")
 
         material_relationships_by_type = defaultdict(list)
@@ -3161,9 +3118,9 @@ def _upload_to_neo4j(
                 f"素材关系 {relationship_type}"
             )
 
-        # ====================================================
+        # ==================================================
         # 11.5 Concept 知识层
-        # ====================================================
+        # ==================================================
         print("🧠 [5/7] 写入 Concept 知识层……")
 
         raw_concepts = knowledge_data.get("concepts", [])
@@ -3243,11 +3200,9 @@ def _upload_to_neo4j(
                 concept.get("confidence"), 0.5
             )
 
-            # ---- 关键改动：layer 逐概念动态写入 ----
             concept_layer = concept.get("layer")
 
             if concept_layer not in CONCEPT_LAYERS:
-                # 兜底：没有 tier 打分时视为叶子层。
                 concept_layer = LAYER_LEAF
 
             concept_rows.append({
@@ -3309,9 +3264,9 @@ def _upload_to_neo4j(
                 f"{dropped_concept_count} 个无效 Concept"
             )
 
-        # ====================================================
+        # ==================================================
         # 11.6 HAS_EVIDENCE 跨层关系
-        # ====================================================
+        # ==================================================
         print("🌉 [6/7] 建立 HAS_EVIDENCE 证据关系……")
 
         evidence_rows = []
@@ -3345,9 +3300,11 @@ def _upload_to_neo4j(
             "HAS_EVIDENCE"
         )
 
-        # ====================================================
+        # ==================================================
         # 11.7 Concept 语义关系
-        # ====================================================
+        # 改动 3b：append 时补读 auto_generated 字段，
+        #          Cypher SET 时补写入 auto_generated
+        # ==================================================
         print("🕸️ [7/7] 写入 Concept 语义关系……")
 
         raw_knowledge_relationships = (
@@ -3365,9 +3322,7 @@ def _upload_to_neo4j(
         validated_relationships = []
         dropped_relationship_count = 0
 
-        for relationship in (
-            raw_knowledge_relationships
-        ):
+        for relationship in raw_knowledge_relationships:
             source = _normalize_text(
                 relationship.get("source")
             )
@@ -3434,6 +3389,11 @@ def _upload_to_neo4j(
                 relationship_type, 0.35
             )
 
+            # 改动 3b：读取 auto_generated 字段
+            is_auto_generated = bool(
+                relationship.get("auto_generated", False)
+            )
+
             validated_relationships.append({
                 "source": source,
                 "target": target,
@@ -3445,7 +3405,9 @@ def _upload_to_neo4j(
                 "source_page_ids": source_page_ids,
                 "evidence_count": len(evidence_node_ids),
                 "confidence": confidence,
-                "base_weight": base_weight
+                "base_weight": base_weight,
+                # 改动 3b：透传 auto_generated
+                "auto_generated": is_auto_generated
             })
 
         validated_relationships = (
@@ -3500,6 +3462,8 @@ def _upload_to_neo4j(
                         row.confidence,
                     relation.base_weight =
                         row.base_weight,
+                    relation.auto_generated =
+                        row.auto_generated,
                     relation.data_version =
                         $data_version
                 """,
@@ -3513,9 +3477,9 @@ def _upload_to_neo4j(
                 f"{dropped_relationship_count} 条无效知识关系"
             )
 
-        # ====================================================
+        # ==================================================
         # 11.8 Neo4j 入库统计
-        # ====================================================
+        # ==================================================
         with driver.session() as session:
             total_nodes = session.run(
                 "MATCH (node) RETURN count(node) AS count"
@@ -3558,6 +3522,15 @@ def _upload_to_neo4j(
                 """
             ).single()["count"]
 
+            # 验证查询：确认 auto_generated 边已写入
+            auto_generated_count = session.run(
+                """
+                MATCH (:Concept)-[r]->(:Concept)
+                WHERE r.auto_generated = true
+                RETURN count(r) AS count
+                """
+            ).single()["count"]
+
         report = {
             "status": "success",
             "total_node_count": total_nodes,
@@ -3570,6 +3543,9 @@ def _upload_to_neo4j(
                 knowledge_relationship_count
             ),
             "evidence_relationship_count": evidence_count,
+            "auto_generated_relationship_count": (
+                auto_generated_count
+            ),
             "written_concept_count": len(concept_rows),
             "written_knowledge_relationship_count": len(
                 validated_relationships
@@ -3586,6 +3562,7 @@ def _upload_to_neo4j(
 
     finally:
         driver.close()
+
 
 # ============================================================
 # 12. Pinecone 向量文件读取与验证
@@ -4428,20 +4405,17 @@ def build_and_store_databases(
     max_relations_per_pair: int = 2,
     page_node_batch_size: int = 12,
     data_version: str = DEFAULT_DATA_VERSION,
-    # -------- 新增：元数据过滤参数 --------
     metadata_similarity_threshold: float = 0.85,
     metadata_safe_evidence_count: int = 5,
     metadata_safe_page_count: int = 3,
-    # -------- 新增：Tier 打分参数 --------
     tier_weight_evidence: float = 1.0,
     tier_weight_doc_breadth: float = 3.0,
     tier_weight_page_breadth: float = 1.5,
-    tier_label_penalty: float = 6.0,
+    tier_label_penalty: float = 25.0,
     tier_category_bonus: float = 2.0,
     tier_category_penalty: float = 2.0,
     tier_threshold_core: float = 10.0,
     tier_threshold_secondary: float = 4.0,
-    # -------- 新增：父子挂靠参数 --------
     parent_overlap_threshold: float = 0.6,
     deepseek_api_key: Optional[str] = None,
     deepseek_base_url: Optional[str] = None,
@@ -4748,12 +4722,10 @@ def export_graph_from_neo4j(
       - radius=0：未指定中心节点时导出全部符合条件节点；
         指定中心节点时导出其完整连通分量。
       - radius>0：从中心节点向外扩展指定跳数。
-
-    其余参数含义与旧版一致。
     """
-    # ========================================================
+    # ======================================================
     # 16.1 参数校验
-    # ========================================================
+    # ======================================================
     if not _normalize_text(output_path):
         raise ValueError("output_path 不能为空。")
 
@@ -4763,7 +4735,6 @@ def export_graph_from_neo4j(
     if radius < 0:
         raise ValueError("radius 不能小于 0。")
 
-    # -1 表示不过滤；0/1/2/3 为具体层。
     if layer not in {-1, 0, 1, 2, 3}:
         raise ValueError(
             "layer 只能是 -1、0、1、2 或 3。"
@@ -4801,9 +4772,9 @@ def export_graph_from_neo4j(
     print("📤 开始从 Neo4j 导出图谱")
     print("=" * 60)
 
-    # ========================================================
+    # ======================================================
     # 16.2 从 Neo4j 读取完整图数据
-    # ========================================================
+    # ======================================================
     nodes, relationships = _load_graph_from_neo4j(
         target_neo4j_uri,
         target_neo4j_user,
@@ -4821,9 +4792,9 @@ def export_graph_from_neo4j(
         if "Document" in node["labels"]
     }
 
-    # ========================================================
+    # ======================================================
     # 16.3 查找中心节点
-    # ========================================================
+    # ======================================================
     center_element_id = _find_center_node(
         nodes,
         document_map,
@@ -4831,7 +4802,6 @@ def export_graph_from_neo4j(
         center_node_name
     )
 
-    # 指定了具体图层时，中心节点必须位于对应图层。
     if center_element_id is not None and layer != -1:
         center_layer = nodes[
             center_element_id
@@ -4848,9 +4818,9 @@ def export_graph_from_neo4j(
                 f"与指定的 layer={layer} 不一致。"
             )
 
-    # ========================================================
+    # ======================================================
     # 16.4 构建无向邻接表
-    # ========================================================
+    # ======================================================
     adjacency: Dict[str, Set[str]] = defaultdict(set)
 
     for relationship in relationships:
@@ -4863,9 +4833,9 @@ def export_graph_from_neo4j(
         adjacency[source].add(target)
         adjacency[target].add(source)
 
-    # ========================================================
+    # ======================================================
     # 16.5 根据中心节点和半径确定初始范围
-    # ========================================================
+    # ======================================================
     node_distances: Dict[str, int] = {}
 
     if center_element_id is None:
@@ -4896,9 +4866,9 @@ def export_graph_from_neo4j(
                 )
                 traversal_queue.append(neighbor)
 
-    # ========================================================
+    # ======================================================
     # 16.6 按课程过滤
-    # ========================================================
+    # ======================================================
     normalized_course_id = _normalize_text(course_id)
 
     if normalized_course_id:
@@ -4988,9 +4958,9 @@ def export_graph_from_neo4j(
                 f"「{normalized_course_id}」。"
             )
 
-    # ========================================================
+    # ======================================================
     # 16.7 按图层过滤
-    # ========================================================
+    # ======================================================
     if layer == -1:
         retained = set(scope)
     else:
@@ -5007,9 +4977,9 @@ def export_graph_from_neo4j(
             "应用中心节点、课程和图层筛选后，没有剩余节点。"
         )
 
-    # ========================================================
+    # ======================================================
     # 16.8 校验节点前端 ID
-    # ========================================================
+    # ======================================================
     frontend_id_to_element_id = {}
 
     for element_id in retained:
@@ -5037,9 +5007,9 @@ def export_graph_from_neo4j(
 
         frontend_id_to_element_id[node_id] = element_id
 
-    # ========================================================
+    # ======================================================
     # 16.9 构造前端节点
-    # ========================================================
+    # ======================================================
     output_nodes = []
 
     for element_id in retained:
@@ -5134,9 +5104,9 @@ def export_graph_from_neo4j(
 
         output_nodes.append(output_node)
 
-    # ========================================================
+    # ======================================================
     # 16.10 构造前端关系
-    # ========================================================
+    # ======================================================
     output_links = []
     relationship_id_counter = defaultdict(int)
 
@@ -5244,6 +5214,14 @@ def export_graph_from_neo4j(
                 source_page_ids
             )
 
+        # auto_generated 透传到前端，便于可视化区分
+        auto_generated = relationship_properties.get(
+            "auto_generated"
+        )
+
+        if auto_generated is not None:
+            output_link["auto_generated"] = auto_generated
+
         if include_properties:
             output_link["properties"] = dict(
                 relationship_properties
@@ -5251,9 +5229,9 @@ def export_graph_from_neo4j(
 
         output_links.append(output_link)
 
-    # ========================================================
+    # ======================================================
     # 16.11 确定中心节点导出信息
-    # ========================================================
+    # ======================================================
     exported_center_node_id = None
     exported_center_node_name = None
 
@@ -5268,9 +5246,9 @@ def export_graph_from_neo4j(
             center_node, document_map
         )
 
-    # ========================================================
+    # ======================================================
     # 16.12 排序，保证重复导出结果稳定
-    # ========================================================
+    # ======================================================
     output_nodes.sort(
         key=lambda item: (
             item.get("layer", 0),
@@ -5289,12 +5267,13 @@ def export_graph_from_neo4j(
         )
     )
 
-    # ========================================================
+    # ======================================================
     # 16.13 统计节点类型、图层和关系类型
-    # ========================================================
+    # ======================================================
     node_type_counts = defaultdict(int)
     layer_counts = defaultdict(int)
     relationship_type_counts = defaultdict(int)
+    auto_generated_link_count = 0
 
     for node in output_nodes:
         node_type_counts[
@@ -5310,14 +5289,20 @@ def export_graph_from_neo4j(
             link.get("relation", "RELATED_TO")
         ] += 1
 
-    # ========================================================
+        if link.get("auto_generated"):
+            auto_generated_link_count += 1
+
+    # ======================================================
     # 16.14 生成最终结果
-    # ========================================================
+    # ======================================================
     result = {
         "metadata": {
             "schema_version": "3.0",
             "node_count": len(output_nodes),
             "link_count": len(output_links),
+            "auto_generated_link_count": (
+                auto_generated_link_count
+            ),
             "center_node_id": exported_center_node_id,
             "center_node_name": (
                 exported_center_node_name
@@ -5346,9 +5331,9 @@ def export_graph_from_neo4j(
         "links": output_links
     }
 
-    # ========================================================
+    # ======================================================
     # 16.15 写入 JSON
-    # ========================================================
+    # ======================================================
     absolute_output_path = os.path.abspath(output_path)
 
     output_directory = os.path.dirname(
@@ -5365,6 +5350,7 @@ def export_graph_from_neo4j(
     print("=" * 60)
     print(f"节点数量：{len(output_nodes)}")
     print(f"关系数量：{len(output_links)}")
+    print(f"自动挂靠关系数量：{auto_generated_link_count}")
 
     if exported_center_node_id:
         print(
@@ -5381,12 +5367,6 @@ def export_graph_from_neo4j(
 # ============================================================
 # 17. 模块公开接口
 # ============================================================
-# 对外只建议使用下面两个函数：
-#
-# 1. build_and_store_databases
-# 2. export_graph_from_neo4j
-#
-# 其他以下划线开头的函数均属于内部实现。
 __all__ = [
     "build_and_store_databases",
     "export_graph_from_neo4j"
@@ -5398,12 +5378,8 @@ __all__ = [
 # ============================================================
 if __name__ == "__main__":
     try:
-        # 一键执行：
-        # 正式文件读取 → 知识抽取与归一化（含 Tier 打分、父子挂靠）
-        # → Neo4j 入库 → Pinecone 入库
         pipeline_report = build_and_store_databases()
 
-        # 数据库构建完成后，导出完整图谱。
         export_output_path = os.path.join(
             DEFAULT_WORK_DIR,
             "frontend_graph_v2.json"
@@ -5415,8 +5391,7 @@ if __name__ == "__main__":
             layer=-1,
             include_properties=True
         )
-        # radius：默认 0，节点向外扩充的跳数。
-        # layer（升级后语义，注意和旧版不同）：
+        # layer 升级后语义（注意和旧版不同）：
         #   -1 = 不过滤，知识层+素材层全都要；
         #    0 = 只要素材层（Page、多模态数据等）；
         #    1 = 只要核心知识点（Concept layer=1）；
@@ -5438,6 +5413,10 @@ if __name__ == "__main__":
             "导出关系数量："
             f"{export_result['metadata']['link_count']}"
         )
+        print(
+            "自动挂靠关系数量："
+            f"{export_result['metadata']['auto_generated_link_count']}"
+        )
         print(f"前端图谱文件：{export_output_path}")
 
     except KeyboardInterrupt:
@@ -5450,5 +5429,3 @@ if __name__ == "__main__":
         print("=" * 70)
         print(f"{type(error).__name__}: {error}")
         raise
-
-            
