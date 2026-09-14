@@ -76,16 +76,21 @@ _load_env_file()
 DEFAULT_KG_DATA_DIR = os.getenv(
     "KG_DATA_DIR",
     (
-        r"C:\Users\Lin\extraction\output"
-        r"\qwen_qwen3.7-plus_6\kg_data"
+
+
+
+        r"C:\Users\Lin\Desktop\extraction\output"
+        r"\qwen_qwen3.7-plus_7\kg_data"
     )
 )
 
 DEFAULT_DEBUG_DIR = os.getenv(
     "DEBUG_DIR",
     (
-        r"C:\Users\Lin\extraction\output"
-        r"\qwen_qwen3.7-plus_6\debug"
+
+
+        r"C:\Users\Lin\Desktop\extraction\output"
+        r"\qwen_qwen3.7-plus_7\debug"
     )
 )
 
@@ -112,9 +117,9 @@ DEFAULT_DEEPSEEK_MODEL = os.getenv(
     "deepseek-chat"
 )
 
-DEFAULT_NEO4J_URI = os.getenv("NEO4J_URI", "")
-DEFAULT_NEO4J_USER = os.getenv("NEO4J_USER", "")
-DEFAULT_NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
+DEFAULT_NEO4J_URI = os.getenv("NEO4J_URI_2", "")
+DEFAULT_NEO4J_USER = os.getenv("NEO4J_USER_2", "")
+DEFAULT_NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_2", "")
 
 DEFAULT_PINECONE_API_KEY = os.getenv(
     "PINECONE_API_KEY",
@@ -4394,7 +4399,7 @@ def build_and_store_databases(
     work_dir: str = DEFAULT_WORK_DIR,
     resume: bool = True,
     force_reextract: bool = False,
-    reuse_final_concepts: bool = True,
+    reuse_final_concepts: bool = False,
     write_neo4j: bool = True,
     write_pinecone: bool = True,
     create_pinecone_index: bool = True,
