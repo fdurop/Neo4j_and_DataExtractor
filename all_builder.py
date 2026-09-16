@@ -68,7 +68,7 @@ def _load_env_file(
                 os.environ.setdefault(key, value)
 
 
-_load_env_file()
+_load_env_file(override=True)
 
 # ============================================================
 # 2. 默认配置
@@ -76,9 +76,6 @@ _load_env_file()
 DEFAULT_KG_DATA_DIR = os.getenv(
     "KG_DATA_DIR",
     (
-
-
-
         r"C:\Users\Lin\Desktop\extraction\output"
         r"\qwen_qwen3.7-plus_7\kg_data"
     )
@@ -87,8 +84,6 @@ DEFAULT_KG_DATA_DIR = os.getenv(
 DEFAULT_DEBUG_DIR = os.getenv(
     "DEBUG_DIR",
     (
-
-
         r"C:\Users\Lin\Desktop\extraction\output"
         r"\qwen_qwen3.7-plus_7\debug"
     )
@@ -112,6 +107,8 @@ DEFAULT_DEEPSEEK_BASE_URL = os.getenv(
     "https://api.deepseek.com"
 ).rstrip("/")
 
+# 说明：DEEPSEEK_MODEL 由 key.env 直接控制，本次已在 key.env
+# 中设置为 flash 版本模型，此处逻辑本身无需改动。
 DEFAULT_DEEPSEEK_MODEL = os.getenv(
     "DEEPSEEK_MODEL",
     "deepseek-chat"
@@ -171,65 +168,65 @@ LAYER_CORE = 1
 LAYER_SECONDARY = 2
 LAYER_LEAF = 3
 
+# ------------------------------------------------------------
+# 【本次改动 A】关系类型精简：16 → 11
+#
+# 删除的 6 个关系及其吸收去向：
+#   HAS_PART      → 由 PART_OF 承担（方向改为 子→父，统一挂靠语义）
+#   CONFIGURED_BY → 吸收进 HAS_PARAMETER
+#   INPUTS        → 吸收进新增的 FLOWS_TO
+#   OUTPUTS       → 吸收进新增的 FLOWS_TO
+#   AFFECTS       → 吸收进 RELATED_TO
+#   APPLIES_TO    → 吸收进 IMPLEMENTS
+#
+# 新增的 1 个关系：
+#   FLOWS_TO：信号/能量/数据流向，方向约定为 source → target
+#             （即"从……流向……"，与 INPUTS/OUTPUTS 的双向表达统一）
+# ------------------------------------------------------------
 ALLOWED_RELATION_TYPES = {
     "IS_A",
     "PART_OF",
-    "HAS_PART",
     "HAS_PARAMETER",
-    "CONFIGURED_BY",
     "CONTROLS",
     "DRIVES",
     "CONNECTS_TO",
-    "INPUTS",
-    "OUTPUTS",
-    "AFFECTS",
+    "FLOWS_TO",
     "IMPLEMENTS",
     "REQUIRES",
     "PREREQUISITE_OF",
-    "APPLIES_TO",
     "RELATED_TO"
 }
 
 RELATION_DEFINITIONS = {
     "IS_A": "源概念是目标概念的一种或一个具体实例。",
-    "PART_OF": "源概念是目标概念的组成部分。",
-    "HAS_PART": "源概念包含目标概念作为组成部分。",
-    "HAS_PARAMETER": "源概念具有目标参数。",
-    "CONFIGURED_BY": "源概念由目标概念进行配置或设置。",
-    "CONTROLS": "源概念控制目标概念。",
-    "DRIVES": "源概念驱动目标概念。",
-    "CONNECTS_TO": "源概念与目标概念存在明确连接。",
-    "INPUTS": "源概念接收目标概念作为输入。",
-    "OUTPUTS": "源概念产生或输出目标概念。",
-    "AFFECTS": "源概念会影响目标概念。",
-    "IMPLEMENTS": "源概念实现目标功能、方法或原理。",
+    "PART_OF": "源概念是目标概念的组成部分（子→父方向）。",
+    "HAS_PARAMETER": "源概念具有目标参数或由目标进行配置/设置。",
+    "CONTROLS": "源概念控制目标概念（信号层控制）。",
+    "DRIVES": "源概念驱动目标概念（功率/执行层驱动）。",
+    "CONNECTS_TO": "源概念与目标概念存在明确物理或电气连接。",
+    "FLOWS_TO": "源概念的信号、能量或数据流向目标概念（source→target）。",
+    "IMPLEMENTS": "源概念实现目标功能、方法、原理，或应用于目标场景。",
     "REQUIRES": "源概念需要目标概念才能运行或成立。",
     "PREREQUISITE_OF": "源概念是理解目标概念的前置知识。",
-    "APPLIES_TO": "源概念应用于目标对象或场景。",
-    "RELATED_TO": "二者相关，但材料不足以支持更明确的关系。"
+    "RELATED_TO": "二者相关（包含相互影响关系），但材料不足以支持更明确的关系。"
 }
 
 RELATION_BASE_WEIGHTS = {
     "CONTROLS": 1.00,
     "DRIVES": 1.00,
     "HAS_PARAMETER": 0.97,
-    "CONFIGURED_BY": 0.97,
-    "INPUTS": 0.95,
-    "OUTPUTS": 0.95,
+    "FLOWS_TO": 0.93,
     "IS_A": 0.95,
     "CONNECTS_TO": 0.92,
     "PART_OF": 0.90,
-    "HAS_PART": 0.90,
-    "IMPLEMENTS": 0.88,
-    "AFFECTS": 0.85,
+    "IMPLEMENTS": 0.85,
     "REQUIRES": 0.82,
     "PREREQUISITE_OF": 0.78,
-    "APPLIES_TO": 0.75,
     "RELATED_TO": 0.35
 }
 
 # ------------------------------------------------------------
-# 改动 1：_LABEL_LIKE_PATTERN 正则扩展
+# 历史改动：_LABEL_LIKE_PATTERN 正则扩展
 # 新增四段匹配：
 #   ① 字母+数字（原有）：D5、A1、IN3、PB2
 #   ② 数字+字母：0V、5V、3V3
@@ -319,6 +316,12 @@ class _PipelineConfig:
     tier_category_penalty: float
     tier_threshold_core: float
     tier_threshold_secondary: float
+
+    # 【本次改动 B】新增字段：IDF 泛在惩罚倍率
+    # 用于压制"到处出现的引脚编号/背景词"获得虚高 Tier 分数的问题。
+    # 惩罚公式：score -= tier_ubiquity_penalty * (page_ratio ** 2)
+    # 其中 page_ratio = 该概念出现的页数 / 全课程总页数。
+    tier_ubiquity_penalty: float
 
     parent_overlap_threshold: float
 
@@ -568,6 +571,10 @@ class _DeepSeekClient:
     def __init__(self, api_key, base_url, model):
         self.api_key = api_key
         self.model = model
+        print(
+            "[DeepSeek Client 已初始化] "
+            f"实际生效的请求模型为: {self.model}"
+        )
         self.url = f"{base_url.rstrip('/')}/chat/completions"
         self.headers = {
             "Authorization": f"Bearer {api_key}",
@@ -1084,7 +1091,8 @@ page_no：{page_no}
 - 没有直接证据的关系不要输出；
 - 优先选择明确关系，避免滥用 RELATED_TO；
 - 不输出语义重复的正反关系；
-- 同一对概念最多输出两种关系。
+- FLOWS_TO 表示"从 source 流向 target"，请仔细判断方向；
+- 同一对概念最多输出一种关系。
 
 【输出格式】
 
@@ -1969,10 +1977,6 @@ def _synthesize_descriptions(
     return result
 
 
-# ------------------------------------------------------------
-# 改动 3：_merge_duplicate_relationships
-# 新增 auto_generated 字段：只要 group 中有一条为 True 则为 True
-# ------------------------------------------------------------
 def _merge_duplicate_relationships(
         relationships: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
@@ -2011,7 +2015,7 @@ def _merge_duplicate_relationships(
             )
         ])
 
-        # 改动 3：保留 auto_generated 标记
+        # 保留 auto_generated 标记：
         # 只要 group 里有一条是自动挂靠生成的，合并后仍标记为 True
         is_auto_generated = any(
             item.get("auto_generated", False)
@@ -2038,6 +2042,7 @@ def _merge_duplicate_relationships(
         })
 
     return result
+
 
 def _remap_relationships(
         relationships: List[Dict[str, Any]],
@@ -2180,6 +2185,13 @@ def _compute_concept_layer(
         if page_id and document_id:
             page_to_document[page_id] = document_id
 
+    # 【本次改动 D】计算全课程总页数，作为 IDF 惩罚的分母基准
+    total_pages = len({
+        _normalize_text(page.get("page_id") or page.get("id"))
+        for page in formal_data.get("pages", [])
+        if _normalize_text(page.get("page_id") or page.get("id"))
+    })
+
     distribution = {1: 0, 2: 0, 3: 0}
     scores = []
 
@@ -2211,11 +2223,21 @@ def _compute_concept_layer(
             * len(page_ids)
         )
 
+        # 【本次改动 D】IDF 平方惩罚：
+        # 概念出现在全课程越大比例的页面中，惩罚呈平方增长。
+        # 连续函数，无需额外的硬阈值开关。
+        if total_pages > 0:
+            page_ratio = len(page_ids) / total_pages
+            score -= (
+                config.tier_ubiquity_penalty
+                * (page_ratio ** 2)
+            )
+
         name = _normalize_text(
             concept.get("canonical_name")
         )
 
-        # 改动 1：使用扩展后的正则 + 白名单豁免
+        # 使用扩展后的正则 + 白名单豁免
         if (
             _LABEL_LIKE_PATTERN.match(name)
             and name.upper() not in _LABEL_PATTERN_WHITELIST
@@ -2270,10 +2292,6 @@ def _evidence_overlap(
     return overlap, intersection
 
 
-# ------------------------------------------------------------
-# 改动 2：_link_parents_for_tier
-# PART_OF → HAS_PART（父节点包含子节点，方向正确）
-# ------------------------------------------------------------
 def _link_parents_for_tier(
         child_concepts: List[Dict[str, Any]],
         parent_pool: List[Dict[str, Any]],
@@ -2326,15 +2344,23 @@ def _link_parents_for_tier(
             child.get("category")
         )
 
+        # 【本次改动 E】关系类型与方向修正：
+        # - 参数类子概念：HAS_PARAMETER，方向为 父→子（不变，语义正确）
+        # - 其他子概念：PART_OF（原 HAS_PART 已删除），
+        #   方向改为 子→父（source=子, target=父），
+        #   与 IS_A / PREREQUISITE_OF 的"子指向父"方向习惯保持一致。
         if child_category in _PARAMETER_CATEGORY_HINTS:
             relation_type = "HAS_PARAMETER"
+            relation_source = best_parent["canonical_name"]
+            relation_target = child_name
         else:
-            # 改动 2：修正为 HAS_PART（父→子，语义正确）
-            relation_type = "HAS_PART"
+            relation_type = "PART_OF"
+            relation_source = child_name
+            relation_target = best_parent["canonical_name"]
 
         auto_relations.append({
-            "source": best_parent["canonical_name"],
-            "target": child_name,
+            "source": relation_source,
+            "target": relation_target,
             "relation": relation_type,
             "description": (
                 f"自动挂靠：{child_name} 从属于 "
@@ -2399,7 +2425,16 @@ def _infer_step_order(
     }
 
     for relation in auto_relations:
-        child_name = relation.get("target")
+        # 注意：PART_OF 的 target 是父概念，source 是子概念，
+        # 而步骤顺序信息应该看子概念（PART_OF 中的 source；
+        # HAS_PARAMETER 中的 target）的描述。
+        relation_type = relation.get("relation")
+
+        if relation_type == "HAS_PARAMETER":
+            child_name = relation.get("target")
+        else:
+            child_name = relation.get("source")
+
         text = description_by_name.get(child_name, "")
 
         for hint, order_value in _STEP_ORDER_HINTS:
@@ -2676,7 +2711,6 @@ def _build_knowledge_layer(
             r for r in metadata_filter_log
             if not r.get("recover_hint")
         ]),
-        # P2 改动：字段名更明确，避免误读为"已救回图里"
         "metadata_filter_should_have_saved_count": (
             recovered_metadata_count
         ),
@@ -2689,7 +2723,6 @@ def _build_knowledge_layer(
     _write_json(config.quality_report_path, report)
 
     return final_data, report
-
 
 # ============================================================
 # 11. Neo4j 双层图谱入库
@@ -3307,8 +3340,6 @@ def _upload_to_neo4j(
 
         # ==================================================
         # 11.7 Concept 语义关系
-        # 改动 3b：append 时补读 auto_generated 字段，
-        #          Cypher SET 时补写入 auto_generated
         # ==================================================
         print("🕸️ [7/7] 写入 Concept 语义关系……")
 
@@ -3394,7 +3425,6 @@ def _upload_to_neo4j(
                 relationship_type, 0.35
             )
 
-            # 改动 3b：读取 auto_generated 字段
             is_auto_generated = bool(
                 relationship.get("auto_generated", False)
             )
@@ -3411,7 +3441,6 @@ def _upload_to_neo4j(
                 "evidence_count": len(evidence_node_ids),
                 "confidence": confidence,
                 "base_weight": base_weight,
-                # 改动 3b：透传 auto_generated
                 "auto_generated": is_auto_generated
             })
 
@@ -3527,7 +3556,6 @@ def _upload_to_neo4j(
                 """
             ).single()["count"]
 
-            # 验证查询：确认 auto_generated 边已写入
             auto_generated_count = session.run(
                 """
                 MATCH (:Concept)-[r]->(:Concept)
@@ -4390,151 +4418,254 @@ def _load_graph_from_neo4j(
         driver.close()
 
 
+def _bfs_expand(
+    center_element_id: str,
+    nodes: Dict[str, Dict[str, Any]],
+    relationships: List[Dict[str, Any]],
+    radius: int
+) -> Set[str]:
+    adjacency = defaultdict(set)
+
+    for relationship in relationships:
+        adjacency[relationship["source"]].add(
+            relationship["target"]
+        )
+        adjacency[relationship["target"]].add(
+            relationship["source"]
+        )
+
+    visited = {center_element_id}
+    frontier = {center_element_id}
+
+    for _ in range(radius):
+        next_frontier = set()
+
+        for element_id in frontier:
+            for neighbor_id in adjacency.get(
+                element_id, set()
+            ):
+                if neighbor_id not in visited:
+                    visited.add(neighbor_id)
+                    next_frontier.add(neighbor_id)
+
+        if not next_frontier:
+            break
+
+        frontier = next_frontier
+
+    return visited
+
+
+def _filter_by_layer_and_course(
+    nodes: Dict[str, Dict[str, Any]],
+    relationships: List[Dict[str, Any]],
+    allowed_layers: Optional[Set[int]],
+    course_id: Optional[str]
+) -> Set[str]:
+    normalized_course_id = (
+        _normalize_text(course_id) if course_id else None
+    )
+
+    kept_ids = set()
+
+    for element_id, node in nodes.items():
+        properties = node["properties"]
+
+        if allowed_layers is not None:
+            layer = properties.get("layer")
+
+            if layer not in allowed_layers:
+                continue
+
+        if normalized_course_id:
+            node_course_id = _normalize_text(
+                properties.get("course_id")
+            )
+
+            if node_course_id != normalized_course_id:
+                continue
+
+        kept_ids.add(element_id)
+
+    return kept_ids
+
+
+def _format_frontend_graph(
+    nodes: Dict[str, Dict[str, Any]],
+    relationships: List[Dict[str, Any]],
+    keep_ids: Set[str]
+) -> Dict[str, Any]:
+    document_map = {
+        _normalize_text(
+            node["properties"].get("id")
+        ): node["properties"]
+        for node in nodes.values()
+        if "Document" in node["labels"]
+    }
+
+    frontend_nodes = []
+
+    for element_id in keep_ids:
+        node = nodes[element_id]
+        properties = node["properties"]
+        labels = node["labels"]
+
+        frontend_nodes.append({
+            "id": _normalize_text(properties.get("id")),
+            "name": _frontend_node_name(
+                node, document_map
+            ),
+            "type": _frontend_node_type(
+                labels, properties
+            ),
+            "labels": labels,
+            "layer": properties.get("layer"),
+            "category": properties.get("category"),
+            "description": properties.get(
+                "description", ""
+            ),
+            "symbolSize": _frontend_symbol_size(labels),
+            "properties": properties
+        })
+
+    frontend_links = []
+
+    for relationship in relationships:
+        source_id = relationship["source"]
+        target_id = relationship["target"]
+
+        if (
+            source_id not in keep_ids
+            or target_id not in keep_ids
+        ):
+            continue
+
+        source_properties = nodes[source_id]["properties"]
+        target_properties = nodes[target_id]["properties"]
+
+        frontend_links.append({
+            "source": _normalize_text(
+                source_properties.get("id")
+            ),
+            "target": _normalize_text(
+                target_properties.get("id")
+            ),
+            "relation": relationship["relation"],
+            "properties": relationship["properties"]
+        })
+
+    return {
+        "nodes": frontend_nodes,
+        "links": frontend_links,
+        "node_count": len(frontend_nodes),
+        "link_count": len(frontend_links)
+    }
+
+
 # ============================================================
-# 15. 公开函数一：文件到数据库的一键式处理
+# 15. 对外公开入口一：构建并写入数据库
 # ============================================================
 def build_and_store_databases(
     kg_data_dir: str = DEFAULT_KG_DATA_DIR,
     debug_dir: str = DEFAULT_DEBUG_DIR,
     work_dir: str = DEFAULT_WORK_DIR,
+
+    deepseek_api_key: str = DEFAULT_DEEPSEEK_API_KEY,
+    deepseek_base_url: str = DEFAULT_DEEPSEEK_BASE_URL,
+    deepseek_model: str = DEFAULT_DEEPSEEK_MODEL,
+
+    neo4j_uri: str = DEFAULT_NEO4J_URI,
+    neo4j_user: str = DEFAULT_NEO4J_USER,
+    neo4j_password: str = DEFAULT_NEO4J_PASSWORD,
+
+    pinecone_api_key: str = DEFAULT_PINECONE_API_KEY,
+    pinecone_index_name: str = (
+        DEFAULT_PINECONE_INDEX_NAME
+    ),
+    pinecone_namespace: str = (
+        DEFAULT_PINECONE_NAMESPACE
+    ),
+    pinecone_dimension: int = (
+        DEFAULT_PINECONE_DIMENSION
+    ),
+    pinecone_metric: str = DEFAULT_PINECONE_METRIC,
+    pinecone_cloud: str = DEFAULT_PINECONE_CLOUD,
+    pinecone_region: str = DEFAULT_PINECONE_REGION,
+    create_pinecone_index: bool = True,
+
+    data_version: str = DEFAULT_DATA_VERSION,
+
     resume: bool = True,
     force_reextract: bool = False,
-    reuse_final_concepts: bool = False,
+    reuse_final_concepts: bool = True,
+
     write_neo4j: bool = True,
     write_pinecone: bool = True,
-    create_pinecone_index: bool = True,
-    pinecone_index_name: str = DEFAULT_PINECONE_INDEX_NAME,
-    pinecone_namespace: str = DEFAULT_PINECONE_NAMESPACE,
-    concept_confidence: float = 0.55,
-    relation_confidence: float = 0.55,
-    max_relations_per_pair: int = 2,
+
+    concept_confidence: float = 0.6,
+    relation_confidence: float = 0.6,
+
+    # 【本次改动 F】默认值由 2 改为 1：
+    # 关系精简后语义更清晰，同一对概念保留一条最优关系即可，
+    # 减少图谱中的冗余边。
+    max_relations_per_pair: int = 1,
+
     page_node_batch_size: int = 12,
-    data_version: str = DEFAULT_DATA_VERSION,
-    metadata_similarity_threshold: float = 0.85,
-    metadata_safe_evidence_count: int = 5,
-    metadata_safe_page_count: int = 3,
+
+    metadata_similarity_threshold: float = 0.82,
+    metadata_safe_evidence_count: int = 3,
+    metadata_safe_page_count: int = 2,
+
     tier_weight_evidence: float = 1.0,
     tier_weight_doc_breadth: float = 3.0,
     tier_weight_page_breadth: float = 1.5,
     tier_label_penalty: float = 25.0,
     tier_category_bonus: float = 2.0,
     tier_category_penalty: float = 2.0,
-    tier_threshold_core: float = 10.0,
-    tier_threshold_secondary: float = 4.0,
-    parent_overlap_threshold: float = 0.6,
-    deepseek_api_key: Optional[str] = None,
-    deepseek_base_url: Optional[str] = None,
-    deepseek_model: Optional[str] = None,
-    neo4j_uri: Optional[str] = None,
-    neo4j_user: Optional[str] = None,
-    neo4j_password: Optional[str] = None,
-    pinecone_api_key: Optional[str] = None,
-    pinecone_dimension: int = DEFAULT_PINECONE_DIMENSION,
-    pinecone_metric: str = DEFAULT_PINECONE_METRIC,
-    pinecone_cloud: str = DEFAULT_PINECONE_CLOUD,
-    pinecone_region: str = DEFAULT_PINECONE_REGION
+    tier_threshold_core: float = 8.0,
+    tier_threshold_secondary: float = 3.0,
+
+    # 【本次改动 F】新增参数：IDF 泛在惩罚倍率
+    # 建议范围 5.0 ~ 12.0；数值越大，对"到处出现"的背景词打击越重。
+    tier_ubiquity_penalty: float = 8.0,
+
+    parent_overlap_threshold: float = 0.6
 ) -> Dict[str, Any]:
-    """
-    从 extraction 正式输出文件开始，一键完成全流程。
-
-    升级点：
-      - 素材层 layer=0，知识层 Concept layer∈{1,2,3}（tier 打分）；
-      - 非概念元数据过滤（含安全阀）；
-      - 概念父子自动挂靠 + 孤儿提升。
-
-    默认调用：
-        report = build_and_store_databases()
-
-    本函数不会删除 Neo4j，也不会删除 Pinecone 索引。
-    """
-    if max_relations_per_pair <= 0:
-        raise ValueError(
-            "max_relations_per_pair 必须大于 0。"
-        )
-
-    if page_node_batch_size <= 0:
-        raise ValueError(
-            "page_node_batch_size 必须大于 0。"
-        )
-
-    if not (0 <= concept_confidence <= 1):
-        raise ValueError(
-            "concept_confidence 必须位于 0 到 1 之间。"
-        )
-
-    if not (0 <= relation_confidence <= 1):
-        raise ValueError(
-            "relation_confidence 必须位于 0 到 1 之间。"
-        )
-
-    if not (0 <= parent_overlap_threshold <= 1):
-        raise ValueError(
-            "parent_overlap_threshold 必须位于 0 到 1 之间。"
-        )
-
-    if not (0 <= metadata_similarity_threshold <= 1):
-        raise ValueError(
-            "metadata_similarity_threshold "
-            "必须位于 0 到 1 之间。"
-        )
-
-    os.makedirs(work_dir, exist_ok=True)
-
     config = _PipelineConfig(
-        kg_data_dir=os.path.abspath(kg_data_dir),
-        debug_dir=os.path.abspath(debug_dir),
-        work_dir=os.path.abspath(work_dir),
-        deepseek_api_key=(
-            deepseek_api_key
-            if deepseek_api_key is not None
-            else DEFAULT_DEEPSEEK_API_KEY
-        ),
-        deepseek_base_url=(
-            deepseek_base_url
-            if deepseek_base_url is not None
-            else DEFAULT_DEEPSEEK_BASE_URL
-        ),
-        deepseek_model=(
-            deepseek_model
-            if deepseek_model is not None
-            else DEFAULT_DEEPSEEK_MODEL
-        ),
-        neo4j_uri=(
-            neo4j_uri
-            if neo4j_uri is not None
-            else DEFAULT_NEO4J_URI
-        ),
-        neo4j_user=(
-            neo4j_user
-            if neo4j_user is not None
-            else DEFAULT_NEO4J_USER
-        ),
-        neo4j_password=(
-            neo4j_password
-            if neo4j_password is not None
-            else DEFAULT_NEO4J_PASSWORD
-        ),
-        pinecone_api_key=(
-            pinecone_api_key
-            if pinecone_api_key is not None
-            else DEFAULT_PINECONE_API_KEY
-        ),
+        kg_data_dir=kg_data_dir,
+        debug_dir=debug_dir,
+        work_dir=work_dir,
+
+        deepseek_api_key=deepseek_api_key,
+        deepseek_base_url=deepseek_base_url,
+        deepseek_model=deepseek_model,
+
+        neo4j_uri=neo4j_uri,
+        neo4j_user=neo4j_user,
+        neo4j_password=neo4j_password,
+
+        pinecone_api_key=pinecone_api_key,
         pinecone_index_name=pinecone_index_name,
         pinecone_namespace=pinecone_namespace,
         pinecone_dimension=pinecone_dimension,
         pinecone_metric=pinecone_metric,
         pinecone_cloud=pinecone_cloud,
         pinecone_region=pinecone_region,
+
         data_version=data_version,
+
         resume=resume,
         force_reextract=force_reextract,
         reuse_final_concepts=reuse_final_concepts,
+
         write_neo4j=write_neo4j,
         write_pinecone=write_pinecone,
+
         concept_confidence=concept_confidence,
         relation_confidence=relation_confidence,
         max_relations_per_pair=max_relations_per_pair,
         page_node_batch_size=page_node_batch_size,
+
         metadata_similarity_threshold=(
             metadata_similarity_threshold
         ),
@@ -4544,6 +4675,7 @@ def build_and_store_databases(
         metadata_safe_page_count=(
             metadata_safe_page_count
         ),
+
         tier_weight_evidence=tier_weight_evidence,
         tier_weight_doc_breadth=tier_weight_doc_breadth,
         tier_weight_page_breadth=tier_weight_page_breadth,
@@ -4551,243 +4683,115 @@ def build_and_store_databases(
         tier_category_bonus=tier_category_bonus,
         tier_category_penalty=tier_category_penalty,
         tier_threshold_core=tier_threshold_core,
-        tier_threshold_secondary=tier_threshold_secondary,
-        parent_overlap_threshold=parent_overlap_threshold
+        tier_threshold_secondary=(
+            tier_threshold_secondary
+        ),
+
+        # 【本次改动 F】新增传参
+        tier_ubiquity_penalty=tier_ubiquity_penalty,
+
+        parent_overlap_threshold=(
+            parent_overlap_threshold
+        )
     )
 
-    print("\n" + "=" * 70)
-    print("🌟 启动文件到数据库的一键式构建流程")
-    print("=" * 70)
-    print(f"正式数据目录：{config.kg_data_dir}")
-    print(f"工作目录：{config.work_dir}")
-    print(
-        "Neo4j："
-        + ("启用" if config.write_neo4j else "跳过")
-    )
-    print(
-        "Pinecone："
-        + ("启用" if config.write_pinecone else "跳过")
-    )
+    os.makedirs(config.work_dir, exist_ok=True)
 
-    started_at = time.time()
+    pipeline_start_time = time.time()
+
+    print("=" * 60)
+    print("🏗️ 知识图谱构建与数据库写入流水线启动")
+    print("=" * 60)
+
+    print("\n📂 [阶段1/4] 读取并校验正式数据……")
 
     formal_data = _load_formal_data(config)
 
-    formal_validation = _validate_formal_data(formal_data)
+    validation_report = _validate_formal_data(formal_data)
 
-    if (
-        config.reuse_final_concepts
-        and not config.force_reextract
-        and os.path.isfile(config.final_concepts_path)
-    ):
-        cached_data = _read_json(
-            config.final_concepts_path, {}
-        )
-
-        cached_source_hash = _normalize_text(
-            cached_data.get("source_hash")
-        )
-
-        current_source_hash = _normalize_text(
-            formal_data.get("source_hash")
-        )
-
-        if (
-            cached_source_hash
-            and current_source_hash
-            and cached_source_hash != current_source_hash
-        ):
-            print(
-                "⚠️ 检测到 extraction 正式输入已经变化，"
-                "旧知识层缓存将不再复用。"
-            )
-            config.force_reextract = True
+    print("\n🧠 [阶段2/4] 构建知识层（抽取/合并/打分/挂靠）……")
 
     knowledge_data, knowledge_report = (
         _build_knowledge_layer(formal_data, config)
     )
 
-    if config.write_neo4j:
+    neo4j_report = None
+    pinecone_report = None
+
+    if write_neo4j:
+        print("\n🗄️ [阶段3/4] 写入 Neo4j……")
+
         neo4j_report = _upload_to_neo4j(
             formal_data, knowledge_data, config
         )
     else:
-        neo4j_report = {"status": "skipped"}
+        print("\n⏭️ [阶段3/4] 跳过 Neo4j 写入（已禁用）。")
 
-    if config.write_pinecone:
+    if write_pinecone:
+        print("\n📌 [阶段4/4] 写入 Pinecone……")
+
         pinecone_report = _upload_to_pinecone(
-            formal_data,
-            config,
-            create_if_missing=create_pinecone_index
+            formal_data, config, create_pinecone_index
         )
     else:
-        pinecone_report = {"status": "skipped"}
+        print("\n⏭️ [阶段4/4] 跳过 Pinecone 写入（已禁用）。")
 
-    elapsed_seconds = round(time.time() - started_at, 2)
+    elapsed_seconds = round(
+        time.time() - pipeline_start_time, 2
+    )
 
-    report = {
+    pipeline_report = {
         "status": "success",
         "elapsed_seconds": elapsed_seconds,
-        "configuration": {
-            "kg_data_dir": config.kg_data_dir,
-            "debug_dir": config.debug_dir,
-            "work_dir": config.work_dir,
-            "data_version": config.data_version,
-            "pinecone_index_name": (
-                config.pinecone_index_name
-            ),
-            "pinecone_namespace": (
-                config.pinecone_namespace
-            ),
-            "max_relations_per_pair": (
-                config.max_relations_per_pair
-            ),
-            "concept_confidence": (
-                config.concept_confidence
-            ),
-            "relation_confidence": (
-                config.relation_confidence
-            ),
-            "parent_overlap_threshold": (
-                config.parent_overlap_threshold
-            ),
-            "tier_threshold_core": (
-                config.tier_threshold_core
-            ),
-            "tier_threshold_secondary": (
-                config.tier_threshold_secondary
-            )
-        },
-        "formal_data_validation": formal_validation,
-        "knowledge_extraction": knowledge_report,
-        "neo4j": neo4j_report,
-        "pinecone": pinecone_report,
-        "files": {
-            "knowledge_graph": (
-                config.final_concepts_path
-            ),
-            "knowledge_quality_report": (
-                config.quality_report_path
-            ),
-            "pipeline_report": (
-                config.pipeline_report_path
-            )
-        }
+        "data_version": data_version,
+        "validation_report": validation_report,
+        "knowledge_report": knowledge_report,
+        "neo4j_report": neo4j_report,
+        "pinecone_report": pinecone_report
     }
 
-    _write_json(config.pipeline_report_path, report)
+    _write_json(config.pipeline_report_path, pipeline_report)
 
-    print("\n" + "=" * 70)
-    print("✅ 文件到数据库的一键式流程执行完成")
-    print("=" * 70)
-    print(f"总耗时：{elapsed_seconds} 秒")
+    print("\n" + "=" * 60)
     print(
-        "Concept 数量："
-        f"{knowledge_report.get('concept_count', 0)}"
+        "🎉 全流程完成，用时 "
+        f"{elapsed_seconds} 秒。"
     )
     print(
-        "知识关系数量："
-        f"{knowledge_report.get('relationship_count', 0)}"
-    )
-    print(
-        "运行报告："
+        "📄 汇总报告已写入："
         f"{config.pipeline_report_path}"
     )
+    print("=" * 60)
 
-    return report
+    return pipeline_report
 
 
 # ============================================================
-# 16. 公开函数二：从 Neo4j 导出图谱
+# 16. 对外公开入口二：从 Neo4j 导出前端图谱
 # ============================================================
 def export_graph_from_neo4j(
     output_path: str,
     center_node_id: Optional[str] = None,
     center_node_name: Optional[str] = None,
-    radius: int = 0,
-    layer: int = -1,
+    radius: int = 2,
+    allowed_layers: Optional[List[int]] = None,
     course_id: Optional[str] = None,
-    include_properties: bool = True,
-    neo4j_uri: Optional[str] = None,
-    neo4j_user: Optional[str] = None,
-    neo4j_password: Optional[str] = None
+    neo4j_uri: str = DEFAULT_NEO4J_URI,
+    neo4j_user: str = DEFAULT_NEO4J_USER,
+    neo4j_password: str = DEFAULT_NEO4J_PASSWORD
 ) -> Dict[str, Any]:
-    """
-    从 Neo4j 导出前端可使用的图谱 JSON。
-
-    layer 图层筛选（升级后语义，注意与旧版不同）：
-
-      - -1：不过滤，知识层和素材层全都要（等价旧版的 0）；
-      -  0：仅素材层（Course/Document/Page/Material）；
-      -  1：仅核心知识点（Concept, layer=1）；
-      -  2：仅附属知识点（Concept, layer=2）；
-      -  3：仅叶子知识点（Concept, layer=3）。
-
-    radius：
-      - radius=0：未指定中心节点时导出全部符合条件节点；
-        指定中心节点时导出其完整连通分量。
-      - radius>0：从中心节点向外扩展指定跳数。
-    """
-    # ======================================================
-    # 16.1 参数校验
-    # ======================================================
-    if not _normalize_text(output_path):
-        raise ValueError("output_path 不能为空。")
-
-    if not isinstance(radius, int):
-        raise TypeError("radius 必须是整数。")
-
-    if radius < 0:
-        raise ValueError("radius 不能小于 0。")
-
-    if layer not in {-1, 0, 1, 2, 3}:
-        raise ValueError(
-            "layer 只能是 -1、0、1、2 或 3。"
-        )
-
-    if (
-        not center_node_id
-        and not center_node_name
-        and radius > 0
-    ):
-        raise ValueError(
-            "radius 大于 0 时，必须指定 "
-            "center_node_id 或 center_node_name。"
-        )
-
-    target_neo4j_uri = (
-        neo4j_uri
-        if neo4j_uri is not None
-        else DEFAULT_NEO4J_URI
-    )
-
-    target_neo4j_user = (
-        neo4j_user
-        if neo4j_user is not None
-        else DEFAULT_NEO4J_USER
-    )
-
-    target_neo4j_password = (
-        neo4j_password
-        if neo4j_password is not None
-        else DEFAULT_NEO4J_PASSWORD
-    )
-
-    print("\n" + "=" * 60)
-    print("📤 开始从 Neo4j 导出图谱")
+    print("=" * 60)
+    print("🌐 从 Neo4j 导出前端知识图谱")
     print("=" * 60)
 
-    # ======================================================
-    # 16.2 从 Neo4j 读取完整图数据
-    # ======================================================
     nodes, relationships = _load_graph_from_neo4j(
-        target_neo4j_uri,
-        target_neo4j_user,
-        target_neo4j_password
+        neo4j_uri, neo4j_user, neo4j_password
     )
 
-    if not nodes:
-        raise ValueError("Neo4j 中没有可导出的节点。")
+    print(
+        f"\n📥 已从 Neo4j 读取 {len(nodes)} 个节点、"
+        f"{len(relationships)} 条关系。"
+    )
 
     document_map = {
         _normalize_text(
@@ -4797,9 +4801,16 @@ def export_graph_from_neo4j(
         if "Document" in node["labels"]
     }
 
-    # ======================================================
-    # 16.3 查找中心节点
-    # ======================================================
+    layer_filter_set = (
+        set(allowed_layers)
+        if allowed_layers is not None
+        else None
+    )
+
+    layer_course_keep_ids = _filter_by_layer_and_course(
+        nodes, relationships, layer_filter_set, course_id
+    )
+
     center_element_id = _find_center_node(
         nodes,
         document_map,
@@ -4807,566 +4818,53 @@ def export_graph_from_neo4j(
         center_node_name
     )
 
-    if center_element_id is not None and layer != -1:
-        center_layer = nodes[
-            center_element_id
-        ]["properties"].get("layer")
-
-        if center_layer != layer:
-            center_display_name = _frontend_node_name(
-                nodes[center_element_id], document_map
-            )
-
-            raise ValueError(
-                f"中心节点「{center_display_name}」"
-                f"位于第 {center_layer} 层，"
-                f"与指定的 layer={layer} 不一致。"
-            )
-
-    # ======================================================
-    # 16.4 构建无向邻接表
-    # ======================================================
-    adjacency: Dict[str, Set[str]] = defaultdict(set)
-
-    for relationship in relationships:
-        source = relationship["source"]
-        target = relationship["target"]
-
-        if source not in nodes or target not in nodes:
-            continue
-
-        adjacency[source].add(target)
-        adjacency[target].add(source)
-
-    # ======================================================
-    # 16.5 根据中心节点和半径确定初始范围
-    # ======================================================
-    node_distances: Dict[str, int] = {}
-
-    if center_element_id is None:
-        scope = set(nodes.keys())
-
-        for element_id in scope:
-            node_distances[element_id] = -1
-    else:
-        scope = {center_element_id}
-        node_distances[center_element_id] = 0
-
-        traversal_queue = deque([center_element_id])
-
-        while traversal_queue:
-            current = traversal_queue.popleft()
-            current_distance = node_distances[current]
-
-            if radius > 0 and current_distance >= radius:
-                continue
-
-            for neighbor in adjacency.get(current, set()):
-                if neighbor in scope:
-                    continue
-
-                scope.add(neighbor)
-                node_distances[neighbor] = (
-                    current_distance + 1
-                )
-                traversal_queue.append(neighbor)
-
-    # ======================================================
-    # 16.6 按课程过滤
-    # ======================================================
-    normalized_course_id = _normalize_text(course_id)
-
-    if normalized_course_id:
-        matching_course_nodes = {
-            element_id
-            for element_id, node in nodes.items()
-            if (
-                "Course" in node["labels"]
-                and _normalize_text(
-                    node["properties"].get("id")
-                ) == normalized_course_id
-            )
-        }
-
-        if not matching_course_nodes:
-            raise ValueError(
-                "未找到课程 ID 为 "
-                f"「{normalized_course_id}」的 Course 节点。"
-            )
-
-        course_related_nodes = set()
-
-        for element_id, node in nodes.items():
-            properties = node["properties"]
-
-            node_id = _normalize_text(
-                properties.get("id")
-            )
-
-            node_course_id = _normalize_text(
-                properties.get("course_id")
-            )
-
-            if node_course_id == normalized_course_id:
-                course_related_nodes.add(element_id)
-            elif (
-                "Course" in node["labels"]
-                and node_id == normalized_course_id
-            ):
-                course_related_nodes.add(element_id)
-
-        compatibility_queue = deque(
-            matching_course_nodes
-        )
-        compatibility_seen = set(matching_course_nodes)
-
-        while compatibility_queue:
-            current = compatibility_queue.popleft()
-
-            for neighbor in adjacency.get(current, set()):
-                if neighbor in compatibility_seen:
-                    continue
-
-                neighbor_node = nodes[neighbor]
-                neighbor_properties = (
-                    neighbor_node["properties"]
-                )
-
-                neighbor_course_id = _normalize_text(
-                    neighbor_properties.get("course_id")
-                )
-
-                if (
-                    neighbor_course_id
-                    and neighbor_course_id
-                    != normalized_course_id
-                ):
-                    continue
-
-                compatibility_seen.add(neighbor)
-                course_related_nodes.add(neighbor)
-                compatibility_queue.append(neighbor)
-
-        scope &= course_related_nodes
-
-        if not scope:
-            raise ValueError(
-                "应用 course_id 过滤后，没有剩余节点。"
-            )
-
-        if (
-            center_element_id is not None
-            and center_element_id not in scope
-        ):
-            raise ValueError(
-                "指定的中心节点不属于课程 "
-                f"「{normalized_course_id}」。"
-            )
-
-    # ======================================================
-    # 16.7 按图层过滤
-    # ======================================================
-    if layer == -1:
-        retained = set(scope)
-    else:
-        retained = {
-            element_id
-            for element_id in scope
-            if nodes[element_id][
-                "properties"
-            ].get("layer") == layer
-        }
-
-    if not retained:
-        raise ValueError(
-            "应用中心节点、课程和图层筛选后，没有剩余节点。"
-        )
-
-    # ======================================================
-    # 16.8 校验节点前端 ID
-    # ======================================================
-    frontend_id_to_element_id = {}
-
-    for element_id in retained:
-        node_id = _normalize_text(
-            nodes[element_id]["properties"].get("id")
-        )
-
-        if not node_id:
-            raise ValueError(
-                "检测到缺少 id 属性的节点，"
-                f"Neo4j elementId：{element_id}"
-            )
-
-        if node_id in frontend_id_to_element_id:
-            existing_element_id = (
-                frontend_id_to_element_id[node_id]
-            )
-
-            raise ValueError(
-                "检测到重复前端节点 ID："
-                f"{node_id}\n"
-                "对应 Neo4j elementId："
-                f"{existing_element_id}、{element_id}"
-            )
-
-        frontend_id_to_element_id[node_id] = element_id
-
-    # ======================================================
-    # 16.9 构造前端节点
-    # ======================================================
-    output_nodes = []
-
-    for element_id in retained:
-        node = nodes[element_id]
-        labels = node["labels"]
-        properties = node["properties"]
-
-        node_id = _normalize_text(properties.get("id"))
-
-        output_node = {
-            "id": node_id,
-            "name": _frontend_node_name(
-                node, document_map
-            ),
-            "type": _frontend_node_type(
-                labels, properties
-            ),
-            "symbolSize": _frontend_symbol_size(labels),
-            "layer": properties.get("layer", 0)
-        }
-
-        if center_element_id is not None:
-            output_node["distance"] = node_distances.get(
-                element_id, -1
-            )
-            output_node["is_center"] = (
-                element_id == center_element_id
-            )
-
-        description = _normalize_text(
-            properties.get("description")
-            or properties.get("summary")
-            or properties.get("raw_text")
-        )
-
-        if description:
-            output_node["description"] = description
-
-        aliases = properties.get("aliases")
-
-        if isinstance(aliases, list):
-            cleaned_aliases = _unique_strings(aliases)
-
-            if cleaned_aliases:
-                output_node["aliases"] = cleaned_aliases
-
-        confidence = properties.get("confidence")
-
-        if confidence is not None:
-            output_node["confidence"] = confidence
-
-        category = _normalize_text(
-            properties.get("category")
-        )
-
-        if category:
-            output_node["category"] = category
-
-        source_page_ids = properties.get(
-            "source_page_ids"
-        )
-
-        if source_page_ids:
-            output_node["source_page_ids"] = (
-                source_page_ids
-            )
-
-        source_page_id = _normalize_text(
-            properties.get("source_page_id")
-        )
-
-        if source_page_id:
-            output_node["source_page_id"] = source_page_id
-
-        document_id = _normalize_text(
-            properties.get("document_id")
-        )
-
-        if document_id:
-            output_node["document_id"] = document_id
-
-        node_course_id = _normalize_text(
-            properties.get("course_id")
-        )
-
-        if node_course_id:
-            output_node["course_id"] = node_course_id
-
-        if include_properties:
-            output_node["labels"] = list(labels)
-            output_node["properties"] = dict(properties)
-
-        output_nodes.append(output_node)
-
-    # ======================================================
-    # 16.10 构造前端关系
-    # ======================================================
-    output_links = []
-    relationship_id_counter = defaultdict(int)
-
-    for relationship in relationships:
-        source_element_id = relationship["source"]
-        target_element_id = relationship["target"]
-
-        if (
-            source_element_id not in retained
-            or target_element_id not in retained
-        ):
-            continue
-
-        source_id = _normalize_text(
-            nodes[source_element_id][
-                "properties"
-            ].get("id")
-        )
-
-        target_id = _normalize_text(
-            nodes[target_element_id][
-                "properties"
-            ].get("id")
-        )
-
-        relation_type = _normalize_text(
-            relationship.get("relation")
-        ) or "RELATED_TO"
-
-        relationship_signature = (
-            source_id,
-            target_id,
-            relation_type
-        )
-
-        relationship_id_counter[
-            relationship_signature
-        ] += 1
-
-        relationship_sequence = (
-            relationship_id_counter[
-                relationship_signature
-            ]
-        )
-
-        link_id = (
-            f"{source_id}::{relation_type}::"
-            f"{target_id}::{relationship_sequence}"
-        )
-
-        relationship_properties = relationship.get(
-            "properties", {}
-        )
-
-        output_link = {
-            "id": link_id,
-            "source": source_id,
-            "target": target_id,
-            "relation": relation_type
-        }
-
-        description = _normalize_text(
-            relationship_properties.get("description")
-        )
-
-        if description:
-            output_link["description"] = description
-
-        confidence = relationship_properties.get(
-            "confidence"
-        )
-
-        if confidence is not None:
-            output_link["confidence"] = confidence
-
-        base_weight = relationship_properties.get(
-            "base_weight"
-        )
-
-        if base_weight is not None:
-            output_link["base_weight"] = base_weight
-
-        evidence_count = relationship_properties.get(
-            "evidence_count"
-        )
-
-        if evidence_count is not None:
-            output_link["evidence_count"] = evidence_count
-
-        evidence_node_ids = relationship_properties.get(
-            "evidence_node_ids"
-        )
-
-        if evidence_node_ids:
-            output_link["evidence_node_ids"] = (
-                evidence_node_ids
-            )
-
-        source_page_ids = relationship_properties.get(
-            "source_page_ids"
-        )
-
-        if source_page_ids:
-            output_link["source_page_ids"] = (
-                source_page_ids
-            )
-
-        # auto_generated 透传到前端，便于可视化区分
-        auto_generated = relationship_properties.get(
-            "auto_generated"
-        )
-
-        if auto_generated is not None:
-            output_link["auto_generated"] = auto_generated
-
-        if include_properties:
-            output_link["properties"] = dict(
-                relationship_properties
-            )
-
-        output_links.append(output_link)
-
-    # ======================================================
-    # 16.11 确定中心节点导出信息
-    # ======================================================
-    exported_center_node_id = None
-    exported_center_node_name = None
-
     if center_element_id is not None:
-        center_node = nodes[center_element_id]
-
-        exported_center_node_id = _normalize_text(
-            center_node["properties"].get("id")
-        )
-
-        exported_center_node_name = _frontend_node_name(
-            center_node, document_map
-        )
-
-    # ======================================================
-    # 16.12 排序，保证重复导出结果稳定
-    # ======================================================
-    output_nodes.sort(
-        key=lambda item: (
-            item.get("layer", 0),
-            item.get("type", ""),
-            item.get("name", ""),
-            item.get("id", "")
-        )
-    )
-
-    output_links.sort(
-        key=lambda item: (
-            item.get("source", ""),
-            item.get("target", ""),
-            item.get("relation", ""),
-            item.get("id", "")
-        )
-    )
-
-    # ======================================================
-    # 16.13 统计节点类型、图层和关系类型
-    # ======================================================
-    node_type_counts = defaultdict(int)
-    layer_counts = defaultdict(int)
-    relationship_type_counts = defaultdict(int)
-    auto_generated_link_count = 0
-
-    for node in output_nodes:
-        node_type_counts[
-            node.get("type", "unknown")
-        ] += 1
-
-        layer_counts[
-            str(node.get("layer", 0))
-        ] += 1
-
-    for link in output_links:
-        relationship_type_counts[
-            link.get("relation", "RELATED_TO")
-        ] += 1
-
-        if link.get("auto_generated"):
-            auto_generated_link_count += 1
-
-    # ======================================================
-    # 16.14 生成最终结果
-    # ======================================================
-    result = {
-        "metadata": {
-            "schema_version": "3.0",
-            "node_count": len(output_nodes),
-            "link_count": len(output_links),
-            "auto_generated_link_count": (
-                auto_generated_link_count
-            ),
-            "center_node_id": exported_center_node_id,
-            "center_node_name": (
-                exported_center_node_name
-            ),
-            "requested_center_node_id": center_node_id,
-            "requested_center_node_name": (
-                center_node_name
-            ),
-            "radius": radius,
-            "layer": layer,
-            "course_id": (
-                normalized_course_id or None
-            ),
-            "include_properties": include_properties,
-            "node_type_counts": dict(
-                sorted(node_type_counts.items())
-            ),
-            "layer_counts": dict(
-                sorted(layer_counts.items())
-            ),
-            "relationship_type_counts": dict(
-                sorted(relationship_type_counts.items())
+        if center_element_id not in layer_course_keep_ids:
+            raise ValueError(
+                "中心节点被 layer/course_id 过滤条件排除，"
+                "请检查过滤参数。"
             )
-        },
-        "nodes": output_nodes,
-        "links": output_links
-    }
 
-    # ======================================================
-    # 16.15 写入 JSON
-    # ======================================================
-    absolute_output_path = os.path.abspath(output_path)
-
-    output_directory = os.path.dirname(
-        absolute_output_path
-    )
-
-    if output_directory:
-        os.makedirs(output_directory, exist_ok=True)
-
-    _write_json(absolute_output_path, result)
-
-    print("\n" + "=" * 60)
-    print("✅ Neo4j 图谱导出完成")
-    print("=" * 60)
-    print(f"节点数量：{len(output_nodes)}")
-    print(f"关系数量：{len(output_links)}")
-    print(f"自动挂靠关系数量：{auto_generated_link_count}")
-
-    if exported_center_node_id:
-        print(
-            "中心节点："
-            f"{exported_center_node_name} "
-            f"({exported_center_node_id})"
+        bfs_keep_ids = _bfs_expand(
+            center_element_id,
+            nodes,
+            relationships,
+            radius
         )
 
-    print(f"输出文件：{absolute_output_path}")
+        keep_ids = bfs_keep_ids & layer_course_keep_ids
+        keep_ids.add(center_element_id)
+    else:
+        keep_ids = layer_course_keep_ids
 
-    return result
+    frontend_graph = _format_frontend_graph(
+        nodes, relationships, keep_ids
+    )
+
+    frontend_graph["center_node_id"] = (
+        _normalize_text(
+            nodes[center_element_id]["properties"].get("id")
+        )
+        if center_element_id is not None
+        else None
+    )
+    frontend_graph["radius"] = (
+        radius if center_element_id is not None else None
+    )
+    frontend_graph["allowed_layers"] = allowed_layers
+    frontend_graph["course_id"] = course_id
+
+    _write_json(output_path, frontend_graph)
+
+    print(
+        "\n✅ 导出完成："
+        f"{frontend_graph['node_count']} 个节点、"
+        f"{frontend_graph['link_count']} 条关系。"
+    )
+    print(f"📄 已写入：{output_path}")
+    print("=" * 60)
+
+    return frontend_graph
 
 
 # ============================================================
@@ -5374,63 +4872,22 @@ def export_graph_from_neo4j(
 # ============================================================
 __all__ = [
     "build_and_store_databases",
-    "export_graph_from_neo4j"
+    "export_graph_from_neo4j",
+    "ALLOWED_RELATION_TYPES",
+    "RELATION_DEFINITIONS",
+    "RELATION_BASE_WEIGHTS"
 ]
 
 
 # ============================================================
-# 18. 主程序入口
+# 18. 脚本直接运行入口
 # ============================================================
 if __name__ == "__main__":
-    try:
-        pipeline_report = build_and_store_databases()
-
-        export_output_path = os.path.join(
-            DEFAULT_WORK_DIR,
-            "frontend_graph_v2.json"
-        )
-
-        export_result = export_graph_from_neo4j(
-            output_path=export_output_path,
-            radius=0,
-            layer=-1,
-            include_properties=True
-        )
-        # layer 升级后语义（注意和旧版不同）：
-        #   -1 = 不过滤，知识层+素材层全都要；
-        #    0 = 只要素材层（Page、多模态数据等）；
-        #    1 = 只要核心知识点（Concept layer=1）；
-        #    2 = 只要附属知识点（Concept layer=2）；
-        #    3 = 只要叶子知识点（Concept layer=3）。
-
-        print("\n" + "=" * 70)
-        print("🎉 全部任务执行完成")
-        print("=" * 70)
-        print(
-            "数据库流程状态："
-            f"{pipeline_report.get('status', 'unknown')}"
-        )
-        print(
-            "导出节点数量："
-            f"{export_result['metadata']['node_count']}"
-        )
-        print(
-            "导出关系数量："
-            f"{export_result['metadata']['link_count']}"
-        )
-        print(
-            "自动挂靠关系数量："
-            f"{export_result['metadata']['auto_generated_link_count']}"
-        )
-        print(f"前端图谱文件：{export_output_path}")
-
-    except KeyboardInterrupt:
-        print("\n⚠️ 用户中断了程序运行。")
-        raise SystemExit(130)
-
-    except Exception as error:
-        print("\n" + "=" * 70)
-        print("❌ 流水线执行失败")
-        print("=" * 70)
-        print(f"{type(error).__name__}: {error}")
-        raise
+    build_and_store_databases(
+        resume=True,
+        force_reextract=False,
+        reuse_final_concepts=True,
+        write_neo4j=True,
+        write_pinecone=True,
+        create_pinecone_index=True
+    )
