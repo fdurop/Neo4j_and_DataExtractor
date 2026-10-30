@@ -116,18 +116,30 @@
     }
     .course-graph-link { display: block; font-size: 13px; margin-top: 8px; color: #475569; }
   </style>
+  <link rel="stylesheet" href="{% static 'css/workspace.css' %}?v=20261031-1">
 </head>
 
-<body>
+<body class="courses-page">
 
 {% include "frontend/header.html" %}
 
 <div class="container">
+  <section class="workspace-intro">
+    <div><p class="eyebrow">FDUROP / TEACHING WORKSPACE</p>
+    <h1>把课程知识，连接起来。</h1>
+    <p class="intro-description">从课件整理到知识图谱，在同一个工作区查看、核对与完善课程内容。</p></div>
+    <a class="intro-link" href="/">进入课程问答 <span aria-hidden="true">↗</span></a>
+  </section>
+  <div class="workflow-strip" aria-label="课程工作流程">
+    <div><span>01</span><strong>整理课程</strong><small>上传与管理课件</small></div>
+    <div><span>02</span><strong>连接知识</strong><small>查看概念与关系</small></div>
+    <div><span>03</span><strong>核对完善</strong><small>对照来源，修正内容</small></div>
+  </div>
   <div class="header-bar">
-    <h2>课程列表</h2>
+    <div><p class="eyebrow">YOUR COURSES</p><h2>我的课程</h2></div>
     <div class="header-actions">
       <button class="fix-btn" onclick="window.location.href='/repair/'">素材核对</button>
-      <button class="add-btn" onclick="window.addCourse()">＋ 新建课程</button>
+      <button class="add-btn" onclick="window.addCourse()">+ 新建课程</button>
     </div>
   </div>
 

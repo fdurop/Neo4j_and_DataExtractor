@@ -28,8 +28,9 @@
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <link rel="stylesheet" href="{% static 'css/workspace.css' %}?v=20261031-1">
 </head>
-<body>
+<body class="student-page">
 <div class="app">
 
   <!-- Header 引用 -->
@@ -45,21 +46,21 @@
     <div class="chat-container">
       <div id="messages" class="messages" aria-live="polite" aria-busy="false">
         <div class="welcome-message">
-          <div class="welcome-icon">🤖</div>
-          <h3>欢迎使用智能问答助手</h3>
-          <p>我是您的AI助手，可以回答各种问题。请在下方的输入框中输入您的问题。</p>
+          <div class="welcome-icon" aria-hidden="true">⌘</div>
+          <h3>从一个问题，连接课程知识</h3>
+          <p>先选择课程，再提出你的问题。结合课程资料探索概念，并核对回答中的来源。</p>
           <div class="welcome-tips">
             <div class="tip-item">
-              <span class="tip-icon">💡</span>
+              <span class="tip-icon">↵</span>
               <span>按 Enter 发送消息</span>
             </div>
             <div class="tip-item">
-              <span class="tip-icon">⚡</span>
+              <span class="tip-icon">∑</span>
               <span>支持数学公式渲染</span>
             </div>
             <div class="tip-item">
-              <span class="tip-icon">🔍</span>
-              <span>基于上下文理解</span>
+              <span class="tip-icon">↗</span>
+              <span>核对课程来源</span>
             </div>
           </div>
         </div>

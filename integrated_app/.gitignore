@@ -5,3 +5,9 @@ config/*.local.*
 __pycache__/
 *.pyc
 *.log
+
+# Local credentials and connection experiments
+*.env
+!config/local.env.example
+neo4j_connection_test*/
+

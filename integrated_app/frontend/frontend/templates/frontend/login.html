@@ -91,17 +91,24 @@
       text-decoration: underline;
     }
   </style>
+  <link rel="stylesheet" href="{% static 'css/workspace.css' %}?v=20261031-1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 </head>
-<body>
+<body class="auth-page">
   <main class="auth-container">
+    <aside class="auth-story"><a class="auth-brand" href="/teacher/">fdurop<span>课程知识工作区</span></a>
+      <p class="eyebrow">LEARN WITH CONNECTIONS</p><h1>让知识有脉络，<br>让学习有依据。</h1>
+      <p>连接课件、知识图谱与课程问答。<br>让每一次探索，都能回到知识的来源。</p>
+      <div class="knowledge-motif" aria-hidden="true"><span>课程资料</span><i></i><span>知识关联</span><i></i><span>理解与应用</span></div>
+    </aside>
     <div class="auth-box">
-      <h2>登录账号</h2>
+      <p class="eyebrow">WELCOME BACK</p><h2>欢迎回来</h2><p class="auth-description">登录账号，继续你的课程探索。</p>
       <form id="loginForm">
         <label for="username">用户名</label>
-        <input type="text" id="username" placeholder="请输入用户名" required>
+        <input type="text" id="username" autocomplete="username" placeholder="请输入用户名" required>
 
         <label for="password">密码</label>
-        <input type="password" id="password" placeholder="请输入密码" required>
+        <input type="password" id="password" autocomplete="current-password" placeholder="请输入密码" required>
 
         <button type="submit" class="primary-btn">登录</button>
       </form>
