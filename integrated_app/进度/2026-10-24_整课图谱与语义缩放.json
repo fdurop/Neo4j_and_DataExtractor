@@ -1,0 +1,124 @@
+{
+  "author": "昕煜 冷",
+  "date": "2026-10-24",
+  "status": "implemented_and_verified_with_limits",
+  "request": "整门课程跨多份课件的知识图谱；大画布、节点分档、缩放展开与实际关系连线。",
+  "application": "D:/extraction-main/integrated_app",
+  "local_url": "http://127.0.0.1:8769",
+  "scope": {
+    "paid_model_requests": 0,
+    "remote_database_writes": 0,
+    "remote_database_read": "只读加载已有真实课程图谱；有约一分钟以上等待，未作为渲染耗时。",
+    "original_source_or_historical_outputs_changed": false,
+    "new_results": "integrated_app/runtime/course_scale/2026-10-24"
+  },
+  "changes": [
+    {
+      "paths": [
+        "frontend/frontend/templates/frontend/knowledge_graph.html",
+        "frontend/static/css/knowledge_graph.css"
+      ],
+      "behavior": "画布默认占满可用宽高；筛选与知识点证据面板覆盖打开、默认收起；保留编辑和JSON/SVG/PNG入口。"
+    },
+    {
+      "paths": [
+        "frontend/static/js/knowledge_graph_model.js"
+      ],
+      "behavior": "概览保留已有概念关系；四档显示详略及缩放迟滞；显示档位不代表教师确认的教学层级，也不生成先修关系。"
+    },
+    {
+      "paths": [
+        "frontend/static/js/graph_map_layout.js"
+      ],
+      "behavior": "稳定地图布局、四种节点尺寸、碰撞避让和空间索引；布局连通性仅用于排版。"
+    },
+    {
+      "paths": [
+        "frontend/static/js/graph_canvas.js",
+        "frontend/static/js/knowledge_graph.js"
+      ],
+      "behavior": "随放大逐档展开；只绘视野附近节点及两端可见的原始边；文字随图缩放；初始可读比例与全图概览分开；只在档位或选择变化时重建节点列表；整课计数与筛选计数分开；空图清空档位通知。",
+      "export_scope": "当前筛选与显示档位的完整节点及原始关系，不限于当前视野；SVG可继续放大。"
+    },
+    {
+      "paths": [
+        "engines/graph/all_builder.py",
+        "engines/graph/course_incremental.py"
+      ],
+      "behavior": "同课程同名概念跨课件累加来源、证据、页语境；保留教师内容与审核；新增证据关系不被内容锁拦住；候选与问题记录保守合并。"
+    }
+  ],
+  "verification": {
+    "offline_tests": {
+      "author": "昕煜 冷",
+      "count": 126,
+      "failed": 0,
+      "errors": 0,
+      "duration": 23.909,
+      "command": "python -X utf8 -B -m unittest discover -s integrated_app/tests -v",
+      "exit_code": 0,
+      "log_file": "offline_suite.log",
+      "includes_final_readable_camera_and_course_count_changes": true,
+      "skipped": 0,
+      "test_duration": 22.248,
+      "started_at": "2026-10-24T01:38:37+08:00",
+      "includes_actual_renderer_interaction_tests": true,
+      "renderer_interaction_test_count": 5,
+      "includes_empty_scene_visibility_reset": true
+    },
+    "browser": "runtime/course_scale/2026-10-24/browser_validation.json",
+    "real_sample": {
+      "concept_nodes": 102,
+      "semantic_relations": 121,
+      "cumulative_display_tiers": [
+        18,
+        28,
+        62,
+        102
+      ],
+      "desktop_canvas": {
+        "width": 1280,
+        "height": 694
+      },
+      "mobile_canvas": {
+        "width": 375.33,
+        "height": 574
+      },
+      "inspector_does_not_resize_canvas": true
+    },
+    "synthetic_scale": {
+      "documents": 50,
+      "concept_nodes": 5000,
+      "semantic_relations": 10000,
+      "browser_fourth_tier_drawn_nodes": 57,
+      "single_document_view": {
+        "nodes": 100,
+        "relations": 200
+      },
+      "layout_benchmark_ms": 339.205,
+      "layout_benchmark_scope": "Node.js离线布局，不是端到端或浏览器耗时。",
+      "evidence": [
+        "map_layout_benchmark.json",
+        "viewport_subset_validation.json",
+        "synthetic_5000_browser_tier4.png"
+      ],
+      "real_teaching_result": false
+    },
+    "historical_materials": {
+      "documents": 17,
+      "pages": 271,
+      "material_nodes": 682,
+      "evidence": "historical_sources_inventory.json",
+      "note": "真实历史素材清点，不等同于新管线已完成整课知识抽取与云库验收。"
+    },
+    "original_source_integrity": "runtime/course_scale/2026-10-24/protected_integrity.json"
+  },
+  "remaining": [
+    "整门课真实API抽取、多PDF写入新云端Neo4j及读回仍需另行预算和端到端验收。",
+    "跨课件不同名称的同义概念尚未全局统一，重要程度仍按课件估计；教师需校准主干与真实教学层级。",
+    "原生Neo4j语义关系自身的证据数组累加、相同PDF重复任务识别与整批事务仍待完善。",
+    "大量原始关系可能跨越较远区域；当前只绘两端在视野附近的关系，不将隐藏细节改写为虚构的直接关系。",
+    "PPTX上传入口与服务器部署仍未验证，当前联调上传格式为PDF。",
+    "没有证明教学效果提升；显示分档与模拟压力测试不能代替教师审核和真实学习验证。"
+  ]
+}

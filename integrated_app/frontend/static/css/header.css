@@ -1,0 +1,130 @@
+/* ---------------- header.css ---------------- */
+
+/* Header 容器 */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 24px;
+
+    /* 现代渐变蓝 */
+    background: linear-gradient(135deg, #0056b3, #0077d4);
+    color: #ffffff;
+
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+
+/* 网站标题 */
+.app-header .title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* 操作区 */
+.app-header .actions {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+/* 状态徽章 */
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.25); /* 半透明白 */
+    color: #fff;
+    backdrop-filter: blur(4px);
+}
+
+/* Toggle 开关容器 */
+.toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    color: #e9f3ff;
+}
+
+/* Toggle 自定义样式 */
+.toggle input[type="checkbox"] {
+    appearance: none;
+    width: 22px;
+    height: 12px;
+    border-radius: 12px;
+    background: #bcd4f6;
+    position: relative;
+    cursor: pointer;
+    transition: 0.25s ease;
+}
+
+.toggle input[type="checkbox"]::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    top: -1px;
+    left: -1px;
+    transition: 0.25s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.toggle input[type="checkbox"]:checked {
+    background: #4fa3ff;
+}
+
+.toggle input[type="checkbox"]:checked::after {
+    left: 9px;
+}
+
+/* 次级按钮 */
+.secondary-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    color: #ffffff;
+    transition: 0.25s ease;
+    backdrop-filter: blur(4px);
+}
+
+.secondary-btn:hover {
+    background: rgba(255, 255, 255, 0.32);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.export-box {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 10px 20px;
+}
+
+.export-btn {
+    background: #1976d2;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    font-size: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.export-btn:hover {
+    background: #0d47a1;
+}
+
+.export-btn:active {
+    transform: scale(0.95);
+}

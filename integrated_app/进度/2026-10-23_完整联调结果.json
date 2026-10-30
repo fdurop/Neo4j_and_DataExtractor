@@ -1,0 +1,11 @@
+{
+  "author": "昕煜 冷",
+  "date": "2026-10-23",
+  "status": "passed",
+  "changes_and_results": "../integrated_app/integration_status.json",
+  "startup": "../integrated_app/start.cmd",
+  "url": "http://127.0.0.1:8769",
+  "summary": "独立副本接通真实登录、课程、PDF提取、知识图谱构建、新云端Neo4j、前端编辑保存、素材核对与来源问答。完整21页真实调用88次，估算1.328500元；68项离线回归、10项真实主流程及11项重启后只读接口检查通过。",
+  "preservation": "原业务源码、压缩包和历史保护产物保持原哈希；本轮结果独立保存在integrated_app/runtime/jobs。",
+  "limits": "本机联调；当前上传入口仅PDF；问答为课程关键词与图谱素材检索；教师审核、真实教学评估和服务器部署仍待完成。"
+}

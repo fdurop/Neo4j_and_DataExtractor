@@ -1,0 +1,26 @@
+{
+  "name": "cytoscape",
+  "version": "3.34.4",
+  "license": "MIT",
+  "registry_metadata_url": "https://registry.npmjs.org/cytoscape/latest",
+  "version_metadata_url": "https://registry.npmjs.org/cytoscape/3.34.4",
+  "source_url": "https://registry.npmjs.org/cytoscape/-/cytoscape-3.34.4.tgz",
+  "npm_integrity": "sha512-msY99tMY8iWTg+sIPGfSqDcPNOt4xcj+v/K/7qUFaCUxxlqnMkUYLBjRUzn9W5CU/R2hrmtJa5+UtovrEM2ctg==",
+  "archive_sha256": "0d02363d99d805ce8d91fdecab7b2a8cb91ee280d67f309ce44c161d117b4679",
+  "retrieved_at": "2026-10-23T12:52:15.459Z",
+  "scope": "Cytoscape.js core only; no extensions or plugins bundled.",
+  "files": [
+    {
+      "path": "cytoscape.min.js",
+      "archive_path": "package/dist/cytoscape.min.js",
+      "sha256": "081591ab735b2b6a3b31a3c60f8f3a3e2fee8c92939e0c7820ad1208571b6cd8",
+      "bytes": 435649
+    },
+    {
+      "path": "LICENSE",
+      "archive_path": "package/LICENSE",
+      "sha256": "eb319c6e6f233607f71e8e2f450391751883cfc0eeb3ca7ef574c13d1d9c2203",
+      "bytes": 1082
+    }
+  ]
+}

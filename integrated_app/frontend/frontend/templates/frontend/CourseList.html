@@ -1,0 +1,144 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>课程管理</title>
+
+  <link rel="stylesheet" href="{% static 'css/header.css' %}?v=1" />
+
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background: #f6f8fb;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    /* 标题与操作区 */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    /* 将按钮组包裹起来方便对齐 */
+    .header-actions {
+      display: flex;
+      align-items: center;
+    }
+
+    /* 新建课程按钮 */
+    .add-btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .add-btn:hover {
+      background: #059669;
+    }
+
+    /* 素材核对入口 */
+    .fix-btn {
+      background: #f59e0b; /* 醒目的橙色 */
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+      margin-right: 10px; /* 和右边的新建按钮隔开一点 */
+    }
+
+    .fix-btn:hover {
+      background: #d97706;
+    }
+
+    /* 课程项 */
+    .course-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+      transition: box-shadow 0.2s;
+    }
+
+    .course-item:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .course-info {
+      flex: 1;
+    }
+
+    .course-name {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 16px;
+      color: #2563eb;
+    }
+
+    .course-name:hover {
+      text-decoration: underline;
+    }
+
+    .delete-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .delete-btn:hover {
+      background: #dc2626;
+    }
+    .course-graph-link { display: block; font-size: 13px; margin-top: 8px; color: #475569; }
+  </style>
+</head>
+
+<body>
+
+{% include "frontend/header.html" %}
+
+<div class="container">
+  <div class="header-bar">
+    <h2>课程列表</h2>
+    <div class="header-actions">
+      <button class="fix-btn" onclick="window.location.href='/repair/'">素材核对</button>
+      <button class="add-btn" onclick="window.addCourse()">＋ 新建课程</button>
+    </div>
+  </div>
+
+  <div id="courseList">
+    <div style='text-align:center; padding: 20px; color: #666;'>加载中...</div>
+  </div>
+</div>
+
+<script src="{% static 'js/app_contract.js' %}"></script>
+<script src="{% static 'js/header.js' %}"></script>
+<script src="{% static 'js/teacher.js' %}"></script>
+
+</body>
+</html>

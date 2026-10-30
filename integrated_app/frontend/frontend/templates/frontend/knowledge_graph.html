@@ -1,0 +1,133 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>课程知识图谱 · 教学助手</title>
+  <link rel="stylesheet" href="{% static 'css/knowledge_graph.css' %}?v=20261025-loadstate1">
+  <script defer src="{% static 'js/knowledge_graph_model.js' %}?v=20261025-loadstate1"></script>
+  <script defer src="{% static 'js/export_metadata.js' %}?v=20261024-semantic1"></script>
+  <script defer src="{% static 'js/vendor/cytoscape.min.js' %}"></script>
+  <script defer src="{% static 'js/graph_map_layout.js' %}?v=20261024-semantic1"></script>
+  <script defer src="{% static 'js/graph_canvas.js' %}?v=20261024-semantic1"></script>
+  <script defer src="{% static 'js/knowledge_graph.js' %}?v=20261025-loadstate1"></script>
+</head>
+<body>
+<main class="kg-page">
+  <header class="kg-header">
+    <div class="header-title">
+      <a class="back-link" href="/teacher/" aria-label="返回课程列表">← <span class="back-text">课程</span></a>
+      <span class="header-divider" aria-hidden="true"></span>
+      <div class="title-block">
+        <h1>课程知识图谱</h1>
+        <p id="courseName" class="course-name">课程知识图谱</p>
+      </div>
+    </div>
+    <details class="file-menu">
+      <summary>文件与导出</summary>
+      <div class="file-menu-panel">
+        <button id="reloadGraph" type="button">重新加载课程图谱</button>
+        <button id="importGraph" type="button">导入图谱 JSON</button>
+        <input type="file" id="graphFile" accept=".json,application/json" aria-label="选择要导入的图谱 JSON" hidden>
+        <button id="exportJson" type="button">保存图谱 JSON</button>
+        <hr>
+        <button id="exportSvg" type="button">导出 SVG</button>
+        <button id="exportPng" type="button">导出清晰 PNG</button>
+      </div>
+    </details>
+  </header>
+
+  <section class="workspace" aria-label="课程图谱工作区">
+    <div class="graph-main">
+      <div class="map-controls">
+        <nav class="view-tabs" aria-label="图谱视图">
+          <button type="button" data-mode="overview" aria-pressed="true">课程概览</button>
+          <button type="button" data-mode="hierarchy" aria-pressed="false">概念层级</button>
+          <button type="button" data-mode="prerequisites" aria-pressed="false">前置学习</button>
+        </nav>
+        <label class="map-search" for="graphSearch"><span class="sr-only">搜索知识点</span><input id="graphSearch" type="search" placeholder="搜索知识点"></label>
+        <div class="map-actions">
+          <button id="toggleFilters" type="button" aria-expanded="false" aria-controls="filterPanel">筛选</button>
+          <button id="toggleInspector" type="button" aria-expanded="false" aria-controls="inspectorDrawer">知识点</button>
+          <button id="toggleFullscreen" type="button" aria-pressed="false" title="切换全屏聚焦">聚焦</button>
+        </div>
+      </div>
+      <section id="filterPanel" class="filter-panel" aria-label="图谱筛选与说明" hidden>
+        <h2>图谱筛选</h2>
+        <div class="filters">
+          <label for="documentFilter">来源课件<select id="documentFilter"><option value="">全部课件</option></select></label>
+          <label for="importanceFilter">重要程度<select id="importanceFilter"><option value="3">全部重要程度</option><option value="1">仅核心</option><option value="2">核心与次要</option></select></label>
+        </div>
+        <div class="filter-checks">
+          <label for="showDetails"><input id="showDetails" type="checkbox"> 显示全部细节</label>
+          <label for="showPending"><input id="showPending" type="checkbox" checked> 显示待确认关系</label>
+          <label for="showEdgeLabels"><input id="showEdgeLabels" type="checkbox"> 关系名称</label>
+        </div>
+        <div class="legend" aria-label="图谱标记说明">
+          <span><i class="dot confirmed" aria-hidden="true"></i>教师确认</span>
+          <span><i class="dot suggested" aria-hidden="true"></i>模型建议</span>
+          <span><i class="dot pending" aria-hidden="true"></i>待判断 / 细节</span>
+          <span><i class="dash" aria-hidden="true"></i>待确认关系</span>
+        </div>
+        <p id="viewDescription" class="view-description"></p>
+        <p class="muted">来源归组、概念层级与先修关系分别记录；重要程度为估计值。</p>
+      </section>
+      <div class="graph-frame">
+        <div id="graphWarning" class="notice warning" hidden></div>
+        <div class="graph-scroll"><div id="graphContainer" role="img" aria-label="课程知识图谱；可在右侧知识点列表选择节点" tabindex="0"></div></div>
+        <div id="graphEmpty" class="graph-empty" hidden>
+          <div class="empty-mark" aria-hidden="true">∅</div>
+          <h2 id="emptyTitle">这里还没有图谱</h2>
+          <p id="emptyDescription">可重新加载课程，或导入已有图谱 JSON。</p>
+        </div>
+        <div class="canvas-toolbar" role="toolbar" aria-label="画布控制">
+          <div class="zoom-controls">
+            <button id="zoomOut" type="button" class="icon-button" aria-label="缩小图谱" title="缩小">−</button>
+            <output id="zoomLevel" aria-label="当前缩放比例" aria-live="polite">100%</output>
+            <button id="zoomIn" type="button" class="icon-button" aria-label="放大图谱" title="放大">＋</button>
+            <span class="tool-divider" aria-hidden="true"></span>
+            <button id="zoomReset" type="button" title="恢复概览比例">100%</button>
+            <button id="fitGraph" type="button" title="缩小查看本档全图；100%恢复可读比例">全图概览</button>
+          </div>
+          <div class="detail-indicator"><output id="detailLevel" aria-label="当前细节层级" aria-live="polite">主干</output><span>缩小看主干，放大看细节</span></div>
+        </div>
+      </div>
+    </div>
+    <aside id="inspectorDrawer" class="inspector-card" aria-label="知识点与证据">
+      <div class="list-header"><h2>知识点与证据</h2><div><button id="addNode" type="button" class="text-button">＋ 新增</button><button id="closeInspector" type="button" class="icon-button" aria-label="收起知识点面板" title="收起面板">×</button></div></div>
+      <div id="nodeList" class="node-list" aria-label="当前可见知识点"></div>
+      <section id="inspector" class="inspector"><h2>选择一个知识点</h2><p class="muted">查看说明、来源证据与前置知识，并核对教学角色。</p></section>
+    </aside>
+  </section>
+  <footer class="workspace-status">
+    <div class="graph-meta"><span class="workspace-note" id="workspaceNote">课程图谱</span><span class="graph-summary" id="graphSummary" aria-live="polite"></span></div>
+    <p id="graphStatus" class="status" role="status" aria-live="polite"></p>
+  </footer>
+</main>
+
+<dialog id="nodeDialog" aria-labelledby="nodeDialogHeading">
+  <form id="nodeForm">
+    <h2 id="nodeDialogHeading">新增知识点</h2>
+    <label for="newNodeName">名称<input id="newNodeName" required maxlength="200"></label>
+    <label for="newNodeDescription">说明<textarea id="newNodeDescription" rows="3"></textarea></label>
+    <p class="muted">新增后可单独确认教学角色。保存文字不会自动确认模型关系。</p>
+    <p id="nodeDialogError" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" data-close="nodeDialog">取消</button><button type="submit" class="primary">新增知识点</button></div>
+  </form>
+</dialog>
+<dialog id="edgeDialog" aria-labelledby="edgeTitle">
+  <form id="edgeForm">
+    <h2 id="edgeTitle">新增关系</h2>
+    <p class="muted">先修方向为“先学 → 后学”，包含方向为“整体 → 部分”。组成、分类与运行依赖分别记录。</p>
+    <label for="edgeSource">源概念<select id="edgeSource" required></select></label>
+    <label for="edgeType">关系类型<select id="edgeType"><option value="PREREQUISITE_OF">是学习……的前置</option><option value="HAS_PART">包含</option><option value="PART_OF">是……的组成部分</option><option value="IS_A">是……的一种</option><option value="RELATED_TO">相关</option><option value="REQUIRES">运行时需要</option><option value="APPLIES_TO">应用于</option><option value="HAS_PARAMETER">具有参数</option></select></label>
+    <label for="edgeTarget">目标概念<select id="edgeTarget" required></select></label>
+    <label for="edgeDescription">来源或教学依据<textarea id="edgeDescription" required rows="3" placeholder="说明关系成立的设备、页面或教学情境"></textarea></label>
+    <label class="check-label" for="edgeApproved"><input type="checkbox" id="edgeApproved"> 我已核对方向与依据，确认这条关系</label>
+    <p id="edgeDialogError" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" data-close="edgeDialog">取消</button><button type="submit" class="primary">保存关系</button></div>
+  </form>
+</dialog>
+</body>
+</html>

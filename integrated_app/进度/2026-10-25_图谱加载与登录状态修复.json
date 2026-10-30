@@ -1,0 +1,79 @@
+{
+  "author": "昕煜 冷",
+  "date": "2026-10-25",
+  "status": "fixed_and_verified",
+  "problem": "网页把图谱读取中、未登录或接口失败显示为没有符合筛选的知识点。",
+  "evidence": {
+    "anonymous_status": 401,
+    "authenticated_status": 200,
+    "read_seconds": 20.931,
+    "stored_nodes": 205,
+    "stored_links": 697,
+    "display_concepts": 102,
+    "display_semantic_relations": 121,
+    "overview_available_nodes": 102,
+    "overview_available_links": 121,
+    "initial_display_tier_nodes": 18,
+    "initial_display_tier_links": 13
+  },
+  "changes": [
+    {
+      "path": "frontend/static/js/knowledge_graph.js",
+      "behavior": "明确区分idle/loading/ready/error，保留HTTP状态；401显示登录入口，读取错误提供重试，筛选为空提供清空筛选；导入副本与旧请求并发不覆盖当前状态。"
+    },
+    {
+      "path": "frontend/static/js/knowledge_graph_model.js",
+      "behavior": "可测试的空状态呈现；课程无数据与当前视图没有关系分别提示，概念层级和前置学习可返回概览。"
+    },
+    {
+      "path": "frontend/frontend/templates/frontend/knowledge_graph.html",
+      "behavior": "CSS和已修改JS更新缓存版本。"
+    },
+    {
+      "path": "frontend/static/css/knowledge_graph.css",
+      "behavior": "为空状态登录和课程链接提供清晰可点的样式。"
+    }
+  ],
+  "tests": {
+    "author": "昕煜 冷",
+    "date": "2026-10-25",
+    "count": 133,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_seconds": 23.417,
+    "new_loading_state_tests": 7,
+    "paid_calls": 0
+  },
+  "http_after_restart": [
+    {
+      "path": "/health",
+      "status": 200,
+      "bytes": 62
+    },
+    {
+      "path": "/knowledge-graph/?course_id=course_4385a1b0c2b34e949778ae01b2cc66a9&course_name=%E5%AE%8C%E6%95%B4%E8%81%94%E8%B0%83%E9%AA%8C%E8%AF%81%202026-10-23",
+      "status": 200,
+      "bytes": 9167,
+      "new_cache_version": true
+    },
+    {
+      "path": "/static/js/knowledge_graph.js?v=20261025-loadstate1",
+      "status": 200,
+      "bytes": 36742
+    },
+    {
+      "path": "/static/js/knowledge_graph_model.js?v=20261025-loadstate1",
+      "status": 200,
+      "bytes": 37227
+    }
+  ],
+  "paid_calls": 0,
+  "remote_database_writes": 0,
+  "paid_ledger_unchanged": true,
+  "verification_directory": "integrated_app/runtime/verification/2026-10-25_graph_empty_state",
+  "limits": [
+    "实际云端读回验证使用独立HTTP会话，不会替用户浏览器登录。",
+    "本轮通过HTTP、真实数据归一化和实际控制器DOM单元测试验证；没有新增浏览器截图验证。"
+  ]
+}

@@ -1,0 +1,192 @@
+{% load static %}
+<!-- 注册页面 -->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>注册 - fdurop</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 0;
+    }
+
+    .auth-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: calc(100vh - 60px); /* header 高度预留 */
+    }
+
+    .auth-box {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      width: 360px;
+    }
+
+    .auth-box h2 {
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      text-align: center;
+      color: #333;
+    }
+
+    .auth-box form {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .auth-box label {
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+      color: #555;
+    }
+
+    .auth-box input {
+      margin-bottom: 1rem;
+      padding: 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+
+    /* 下拉选择框通用样式 */
+    .auth-box select {
+      width: 100%;
+      padding: 10px 12px;
+      margin: 8px 0 16px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+      background-color: #fff;
+      color: #333;
+      appearance: none;       /* 隐藏系统默认箭头 */
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    /* 聚焦时的样式 */
+    .auth-box select:focus {
+      border-color: #4A90E2;
+      box-shadow: 0 0 5px rgba(74, 144, 226, 0.3);
+      outline: none;
+    }
+
+    /* 给选择框加一个右侧的小箭头 */
+    .auth-box select {
+      background-image: url("data:image/svg+xml;charset=UTF-8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='gray'><path d='M2 4l4 4 4-4z'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 12px;
+      padding-right: 32px;  /* 给箭头留点空间 */
+    }
+
+    .primary-btn {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 0.75rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .primary-btn:hover {
+      background: #0056b3;
+    }
+
+    .tip {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .tip a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .tip a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <main class="auth-container">
+    <div class="auth-box">
+      <h2>注册新账号</h2>
+      <form id="registerForm">
+        <label for="username">用户名</label>
+        <input type="text" id="username" placeholder="请输入用户名" required>
+
+        <label for="email">邮箱</label>
+        <input type="email" id="email" placeholder="请输入邮箱" required>
+
+        <label for="password">密码</label>
+        <input type="password" id="password" placeholder="请输入密码" required>
+
+        <label for="role">身份</label>
+        <select id="role" required>
+          <option value="student">学生</option>
+          <option value="teacher">教师</option>
+        </select>
+
+        <button type="submit" class="primary-btn">注册</button>
+      </form>
+      <p class="tip">已有账号？ <a href="/login/">登录</a></p>
+      <div id="registerMessage" class="status-message" hidden></div>
+    </div>
+  </main>
+
+<script src="{% static 'js/app_contract.js' %}"></script>
+<script>
+
+document.getElementById("registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const username = document.getElementById("username").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const role = document.getElementById("role").value;
+
+  const registerMessage = document.getElementById("registerMessage");
+
+  try {
+    const res = await fetch("/register", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ username, email, password, role })
+    });
+    const result = await res.json();
+
+    if (res.ok && result.success) {
+      registerMessage.textContent = "注册成功，正在跳转登录...";
+      registerMessage.className = "status-message success";
+      registerMessage.hidden = false;
+      setTimeout(() => {
+        location.href = "/login/";
+      }, 1500);
+    } else {
+      registerMessage.textContent = result.error || "注册失败";
+      registerMessage.className = "status-message error";
+      registerMessage.hidden = false;
+    }
+  } catch (err) {
+    console.error(err);
+    registerMessage.textContent = "请求失败，请检查网络";
+    registerMessage.className = "status-message error";
+    registerMessage.hidden = false;
+  }
+});
+</script>
+</body>
+</html>

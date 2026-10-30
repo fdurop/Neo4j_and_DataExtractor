@@ -1,0 +1,104 @@
+<!-- 学生页面，实现对话功能 -->
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智能问答助手</title>
+  <link rel="stylesheet" href="{% static 'css/header.css' %}?v=1">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}?v=2">
+  <meta name="color-scheme" content="light dark">
+
+  <!-- MathJax 配置 -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$','$$'], ['\\[','\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script','noscript','style','textarea','pre','code']
+      },
+      startup: {
+        typeset: false,
+        pageReady: () => MathJax.startup.defaultPageReady().then(() => { window.__MathJaxReady = true; })
+      }
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header 引用 -->
+  {% include "frontend/header.html" %}
+
+  <!-- 主体消息区 -->
+  <main class="app-main">
+    <div class="course-context" style="margin-bottom:16px;">
+      <label for="chatCourse">提问课程</label>
+      <select id="chatCourse" style="margin-left:8px;padding:8px;max-width:100%;"><option value="">请选择提问课程</option></select>
+      <p id="chatCourseNotice" role="status">正在加载课程列表……</p>
+    </div>
+    <div class="chat-container">
+      <div id="messages" class="messages" aria-live="polite" aria-busy="false">
+        <div class="welcome-message">
+          <div class="welcome-icon">🤖</div>
+          <h3>欢迎使用智能问答助手</h3>
+          <p>我是您的AI助手，可以回答各种问题。请在下方的输入框中输入您的问题。</p>
+          <div class="welcome-tips">
+            <div class="tip-item">
+              <span class="tip-icon">💡</span>
+              <span>按 Enter 发送消息</span>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">⚡</span>
+              <span>支持数学公式渲染</span>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">🔍</span>
+              <span>基于上下文理解</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 底部输入区 -->
+  <footer class="composer">
+    <div class="composer-container">
+      <div class="input-wrapper">
+        <textarea id="input" rows="1" placeholder="请输入您的问题…（Enter 发送，Shift+Enter 换行）" autocomplete="off"></textarea>
+        <div class="input-actions">
+          <button class="action-btn" title="清空输入">🗑️</button>
+        </div>
+      </div>
+      <button id="sendBtn" class="primary-btn">
+        <span class="btn-text">发送</span>
+        <span class="btn-icon">↑</span>
+      </button>
+    </div>
+  </footer>
+</div>
+
+<!-- 公共脚本 -->
+<script src="{% static 'js/app_contract.js' %}"></script>
+<script src="{% static 'js/header.js' %}"></script>
+<script src="{% static 'js/chat.js' %}"></script>
+
+<script>
+// 每次新消息后渲染公式
+document.addEventListener("newMessage", () => {
+  if (window.MathJax) MathJax.typesetPromise();
+});
+
+// 清空输入功能
+document.querySelector('.action-btn').addEventListener('click', () => {
+  document.getElementById('input').value = '';
+});
+</script>
+</body>
+</html>

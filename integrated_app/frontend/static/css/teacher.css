@@ -1,0 +1,487 @@
+/* ================= 全局样式 ================= */
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-color);
+  color: var(--text-color);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+:root {
+  --bg-color: #f9f9f9;
+  --text-color: #222;
+  --header-bg: #004b97;
+  --header-text: #fff;
+  --btn-bg: #fff;
+  --btn-border: #ddd;
+  --btn-hover: #f0f0f0;
+  --accent: #0078d4;
+  --success: #28a745;
+  --error: #dc3545;
+  --card-bg: #fff;
+  --muted-text: #808080;
+}
+
+/* ================= 欢迎区 ================= */
+.teacher-welcome {
+  text-align: center;
+  padding: 40px 20px;
+  border: 2px dashed var(--btn-border);
+  border-radius: 12px;
+  margin-bottom: 30px;
+  background: var(--card-bg);
+}
+
+.teacher-welcome .welcome-icon {
+  font-size: 48px;
+  margin-bottom: 10px;
+}
+
+.welcome-title {
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+
+.welcome-subtitle {
+  font-size: 16px;
+  color: var(--muted-text);
+}
+
+/* ================= 上传区 ================= */
+.file-upload-section {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.upload-title {
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.upload-area {
+  border: 2px dashed var(--btn-border);
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  background: #fafafa;
+}
+
+.upload-area.drag-over {
+  border-color: var(--accent);
+  background: rgba(0, 120, 212, 0.08);
+}
+
+.upload-btn {
+  margin-top: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.upload-btn:hover {
+  background: #005fa3;
+  transform: scale(1.02);
+}
+
+/* ================= 文件列表和处理进度 ================= */
+.file-list,
+.processing-section {
+  margin-top: 20px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.file-list-title,
+.processing-title {
+  font-size: 16px;
+  margin-bottom: 12px;
+  font-weight: bold;
+}
+
+/* 单个文件项 */
+.file-item,
+.processing-item {
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+  border: 1px solid var(--btn-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  transition: background 0.2s ease;
+}
+
+.file-item:hover,
+.processing-item:hover {
+  background: #f5f5f5;
+}
+
+/* 顶部信息区：左边文件名，右边操作按钮 */
+.file-info,
+.processing-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.file-left,
+.processing-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0; /* 避免长文件名撑开布局 */
+}
+
+.file-icon,
+.processing-icon {
+  font-size: 20px;
+  margin-right: 10px;
+  color: var(--accent);
+}
+
+.file-name,
+.processing-name {
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--text-color);
+  word-break: break-all; /* 防止长文件名溢出 */
+}
+
+.file-size,
+.processing-size {
+  font-size: 12px;
+  color: var(--muted-text);
+  margin-left: 8px;
+}
+
+/* 删除按钮 */
+.file-action-btn,
+.processing-action-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--muted-text);
+  transition: color 0.2s ease, transform 0.1s ease;
+}
+
+.file-action-btn:hover,
+.processing-action-btn:hover {
+  color: var(--error);
+  transform: scale(1.1);
+}
+
+/* ================= 进度条 ================= */
+.upload-progress,
+.processing-bar {
+  margin-top: 10px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--btn-border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.5s ease; /* 平滑动画 */
+}
+
+.progress-text,
+.progress-time {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted-text);
+}
+
+/* ================= 无数据提示 ================= */
+.no-files,
+.no-processing {
+  font-size: 13px;
+  color: var(--muted-text);
+  text-align: center;
+  padding: 8px 0;
+}
+
+
+/* ================= 解析失败文件区域样式 ================= */
+.failed-files-section {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.failed-title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.refresh-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s ease;
+}
+
+.refresh-btn:hover {
+  background: #005fa3;
+}
+
+.refresh-icon {
+  font-size: 14px;
+}
+
+.failed-files-list {
+  min-height: 100px;
+}
+
+.no-failed-files {
+  font-size: 13px;
+  color: var(--muted-text);
+  text-align: center;
+  padding: 40px 20px;
+  font-style: italic;
+}
+
+.failed-file-item {
+  background: #fafafa;
+  border: 1px solid var(--btn-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.failed-file-item:hover {
+  background: #f5f5f5;
+}
+
+.failed-file-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.failed-file-name {
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.failed-file-time {
+  color: var(--muted-text);
+  font-size: 12px;
+}
+
+.failed-file-error {
+  color: var(--error);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* ================= 模态框样式 ================= */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--card-bg);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--btn-border);
+}
+
+.modal-title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: var(--text-color);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.file-info {
+  margin-bottom: 20px;
+}
+
+.info-item {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.info-label {
+  font-weight: 600;
+  color: var(--text-color);
+  min-width: 80px;
+}
+
+.info-value {
+  color: var(--muted-text);
+}
+
+.error-details {
+  margin-bottom: 24px;
+}
+
+.error-title {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.error-content {
+  background: #fafafa;
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  padding: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.no-error-info {
+  color: var(--muted-text);
+  font-style: italic;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #005fa3;
+}
+
+.btn-secondary {
+  background: #95a5a6;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #7f8c8d;
+}
+
+.btn-danger {
+  background: var(--error);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c0392b;
+}
+/* ===== 文件列表行样式 ===== */
+.file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f9fafb;
+  margin-bottom: 8px;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #333;
+}
+
+/* 按钮 */
+.detail-btn {
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.detail-btn:hover {
+  background: #059669;
+}

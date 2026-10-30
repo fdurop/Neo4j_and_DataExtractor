@@ -1,0 +1,169 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>素材核对</title>
+
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background: #f6f8fb;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .back-btn {
+      background: #e5e7eb;
+      color: #374151;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .back-btn:hover { background: #d1d5db; }
+
+    /* 素材卡片布局 */
+    .error-card {
+      display: flex;
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      gap: 20px;
+    }
+
+    .image-preview {
+      flex: 0 0 min(40%, 360px);
+      background: #f3f4f6;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      position: relative;
+    }
+
+    .image-preview img {
+      max-width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+    }
+
+    .edit-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .edit-section h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #111827;
+    }
+
+    .edit-section textarea {
+      flex: 1;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 200px;
+      margin-bottom: 15px;
+      box-sizing: border-box;
+      line-height: 1.5;
+    }
+
+    .edit-section textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .card-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* 唯一的保存按钮 */
+    .save-btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 24px; /* 稍微加宽一点，让单按钮显得更稳重 */
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .save-btn:hover { background: #2563eb; }
+    .save-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 12px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .loading-text {
+      text-align: center;
+      padding: 40px;
+      color: #6b7280;
+      font-size: 16px;
+    }
+    .review-intro { color: #475569; line-height: 1.7; }
+    .course-context { color: #334155; margin: 0 0 12px; font-size: 14px; }
+    .source-link { display: inline-block; margin: 8px 0 16px; }
+    .save-result { color: #047857; line-height: 1.6; }
+    .save-result.error { color: #b91c1c; }
+    .preview-note { padding: 18px; color: #64748b; line-height: 1.7; }
+    @media (max-width: 700px) { .error-card { flex-direction: column; } .image-preview { flex-basis: auto; min-height: 100px; } }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header-bar">
+    <h2>素材核对 <span id="itemCount" style="color: #6b7280; font-size: 16px; font-weight: normal;"></span></h2>
+    <button class="back-btn" onclick="window.location.href='/teacher/'">返回课程列表</button>
+  </div>
+  <p id="reviewCourse" class="course-context">正在读取课程素材……</p>
+  <p class="review-intro">请对照原课件核对素材描述。保存文字修订会保留原始模型内容，相关概念和关系仍需在知识图谱中单独审核。</p>
+
+  <div id="errorList">
+    <div class="loading-text">正在加载课程素材，请稍候……</div>
+  </div>
+</div>
+
+<script src="{% static 'js/app_contract.js' %}"></script>
+<script src="{% static 'js/repair.js' %}"></script>
+
+</body>
+</html>
