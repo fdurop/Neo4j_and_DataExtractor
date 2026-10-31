@@ -18,3 +18,6 @@ dragging, editing, undo and edge selection. No test mutations were sent to the c
 
 To roll back source: git switch local-baseline
 Restart start.cmd after switching branches, then refresh the browser.
+
+Additional isolated browser check: creating/deleting both nodes and relationships passed using a temporary fixture. No horizontal page overflow at 390px.
+

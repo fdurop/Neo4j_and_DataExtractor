@@ -14,7 +14,7 @@
   <script defer src="{% static 'js/interactive_graph.js' %}?v=20261031-1"></script>
   <script defer src="{% static 'js/knowledge_graph.js' %}?v=20261031-interactive1"></script>
 <style>
-  :root {--controls-height:96px} .map-controls{flex-wrap:wrap;align-content:center;padding:8px 12px;gap:8px}.map-actions{flex-wrap:wrap}.map-actions button{min-height:32px}.node-properties{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:12px;background:#f6f8f9;padding:12px;border-radius:6px}.node-properties dt{color:#667580}.node-properties dd{margin:0;overflow-wrap:anywhere}.inspector-card{width:min(440px,100vw)}.inspector textarea{min-height:100px}.inspector>button{margin:6px 6px 6px 0}.node-list{max-height:100px} @media(max-width:850px){:root{--controls-height:160px}.map-controls{display:flex}.map-search{flex-basis:100%}.map-actions{margin-left:0}.inspector-card{width:100%}}
+  :root {--controls-height:96px} .map-controls{flex-wrap:wrap;align-content:center;padding:8px 12px;gap:8px}.map-actions{flex-wrap:wrap;flex-shrink:1;min-width:0;max-width:100%}.map-actions button{min-height:32px}.node-properties{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:12px;background:#f6f8f9;padding:12px;border-radius:6px}.node-properties dt{color:#667580}.node-properties dd{margin:0;overflow-wrap:anywhere}.inspector-card{width:min(440px,100vw)}.inspector textarea{min-height:100px}.inspector>button{margin:6px 6px 6px 0}.node-list{max-height:100px} @media(max-width:850px){:root{--controls-height:220px}.map-controls{display:flex}.map-search{flex-basis:100%}.map-actions{margin-left:0;width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.inspector-card{width:100%}}
   </style></head>
 <body>
 <main class="kg-page">
