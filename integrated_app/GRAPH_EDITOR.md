@@ -25,3 +25,11 @@ Additional isolated browser check: creating/deleting both nodes and relationship
 ## Evidence and spring update
 Source evidence and raw text are collapsed by default. Dragging uses a bounded, damped spring simulation over at most 60 nearby nodes, settling after release; fixed nodes and reduced-motion preferences are respected. The standalone read-only verification script in scripts/verify_graph_delete.py checks both reviewed snapshots and native Neo4j nodes. See scripts/VERIFY_GRAPH_DELETE.md.
 
+
+## One-hop focus and compact inspector
+Click a node to highlight its incident edges and direct neighbors; other nodes and edges fade, including edges between neighbors. Click the same node again or click blank canvas to clear the selection. Focus does not relayout nodes. The inspector warns before discarding unsaved text edits.
+
+The description field starts at one visual line, grows with wrapping/input to 240px, then scrolls. Relation controls follow the compact name/description/save area. More than eight relationships are grouped by relation type. IDs, teaching-role controls, learning-path details and source evidence are secondary/collapsible. Relation labels are off by default and appear for focused edges.
+
+Rollback for this update: graph-before-focus-panel-20261031.
+Validation: 139 Python regressions; Cytoscape one-hop/toggle/background/drag/position tests; spring tests; isolated Edge checks for focus, neighbor-edge dimming, textarea growth/shrink, relation ordering/grouping, unsaved-edit confirmation, CRUD and undo. Cloud course data was not modified by these checks.

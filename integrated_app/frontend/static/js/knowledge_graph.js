@@ -3,7 +3,7 @@
   "use strict";
   const $ = id => document.getElementById(id), M = window.CourseGraphModel;
   const state = {raw:null,graph:null,view:null,mode:"overview",selected:null,local:false,dirty:false,edge:null,importLabel:"",loadPhase:"idle",loadError:"",loadErrorStatus:0};
-  const labels = {PREREQUISITE_OF:"学习前置",HAS_PART:"包含",PART_OF:"组成部分",IS_A:"是一种",REQUIRES:"运行需要",RELATED_TO:"相关",APPLIES_TO:"应用于",HAS_PARAMETER:"具有参数"};
+  const labels = {PREREQUISITE_OF:"学习前置",HAS_PART:"包含",PART_OF:"组成部分",IS_A:"是一种",REQUIRES:"运行需要",RELATED_TO:"相关",APPLIES_TO:"应用于",HAS_PARAMETER:"具有参数",DRIVES:"驱动",CONTROLS:"控制",CONNECTS_TO:"连接",IMPLEMENTS:"实现",FLOWS_TO:"流向"};
   const array = value => Array.isArray(value) ? value : [];
   const properties = record => Object.assign({},record && record.properties || {},record || {});
   const nodeById = id => state.graph && state.graph.nodes.find(n => n.id === id);
@@ -14,7 +14,8 @@
   function element(tag,text,cls) { const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);if(cls)e.className=cls;return e; }
   function message(text,error) { $("graphStatus").textContent=text;$("graphStatus").classList.toggle("error",!!error); }
   function button(text,action,cls) {const e=element("button",text,cls);e.type="button";e.addEventListener("click",action);return e;}
-  function field(parent,title,tag,value,id) {const label=element("label",title,"field"),input=element(tag);if(id)input.id=id;input.value=value || "";label.append(input);parent.append(label);return input;}
+  function autosize(input){if(!input)return;input.style.height='0px';const height=Math.max(36,Math.min(240,input.scrollHeight+2));input.style.height=height+'px';input.style.overflowY=input.scrollHeight+2>240?'auto':'hidden';}
+  function field(parent,title,tag,value,id) {const label=element("label",title,"field"),input=element(tag);if(id)input.id=id;input.value=value || "";label.append(input);parent.append(label);if(tag==="textarea"){input.rows=1;input.addEventListener("input",()=>autosize(input));requestAnimationFrame(()=>autosize(input));}return input;}
   function details(parent,title) {const e=element("details"),s=element("summary",title);e.append(s);parent.append(e);return e;}
   function selectOptions(select,items,value) {select.replaceChildren();for(const item of items){const o=element("option",item[1]);o.value=item[0];select.append(o);}select.value=value == null ? "" : String(value);}
   function documentLabel(id) {const d=state.graph.documents.find(d=>String(d.document_id || d.id)===String(id));return d ? d.file_name || d.chapter_title || d.name || id : id || "来源课件待补充";}
@@ -91,7 +92,7 @@
   }
   function renderNodeList(nodes){
     const list=$("nodeList");list.replaceChildren();
-    for(const n of nodes.slice(0,200)){const b=button(n.name,()=>choose(n.id,true));b.dataset.nodeId=n.id;b.setAttribute("aria-pressed",String(state.selected===n.id));list.append(b);}
+    for(const n of nodes.slice(0,200)){const b=button(n.name,()=>choose(n.id,true,true));b.dataset.nodeId=n.id;b.setAttribute("aria-pressed",String(state.selected===n.id));list.append(b);}
     if(nodes.length>200)list.append(element("p","此档共 "+nodes.length+" 个节点，列表显示前200个；可搜索定位其他知识点。"));
     if(!nodes.length)list.append(element("p","当前视图没有可选择的概念。"));
   }
@@ -104,9 +105,12 @@
     $("detailLevel").textContent=info.automatic ? ["主干","知识点","结构细节","全部细节"][info.tier-1]+" · "+info.tier+"/4" : "全部显示";
     $("graphSummary").textContent="视野 "+info.nodes.length+" 节点 / "+info.links.length+" 关系 · 本档 "+info.tierNodeCount+" / "+info.totalNodes+" 节点 · 整课 "+state.courseCounts.nodes+" 节点 / "+state.courseCounts.links+" 关系";
   }
-  function choose(id,focus) {
-    if(connectFrom && id!==connectFrom){const source=connectFrom;connectFrom=null;showEdge(null,source);$("edgeTarget").value=id;return;}
-    state.selected=id;setInspector(true);if(chart)chart.select(id,!!focus);
+  function choose(id,focus,toggle) {
+    if(toggle && id===state.selected)id=null;
+    if(connectFrom && id && id!==connectFrom){const source=connectFrom;connectFrom=null;showEdge(null,source);$("edgeTarget").value=id;return;}
+    const previous=nodeById(state.selected),nameInput=$('editNodeName'),descriptionInput=$('editNodeDescription');
+    if(toggle && id!==state.selected && previous && nameInput && descriptionInput && (nameInput.value!==previous.name || descriptionInput.value!==previous.description) && !confirm('当前节点有未保存的文字修改，仍要切换吗？')){if(chart)chart.select(state.selected,false);return;}
+    state.selected=id;setInspector(!!id);if(chart)chart.select(id,!!focus);
     $("nodeList").querySelectorAll("[data-node-id]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.nodeId===id)));
     renderInspector();
   }
@@ -223,7 +227,8 @@
     if(node.pageObservations.length){const contexts=details(parent,"逐页语境与模型建议（待确认）");for(const o of node.pageObservations){const b=element("div",undefined,"evidence"),s=node.sources.find(s=>s.page_id===o.page_id);b.append(element("strong",s ? "第 "+s.page_no+" 页 · "+(o.observed_name || node.name) : o.observed_name || node.name));if(o.description)b.append(element("p",o.description));if(o.learning_objective)b.append(element("p","建议学习目标："+o.learning_objective));if(Array.isArray(o.aliases_suggested_in_context) && o.aliases_suggested_in_context.length)b.append(element("p","本页建议称呼（非全局同义）："+o.aliases_suggested_in_context.join("、"),"muted"));contexts.append(b);}}
     const relationPanel=details(parent,"相关关系"),relations=state.graph.links.filter(e=>(e.source===node.id || e.target===node.id) && !["HAS_EVIDENCE","CONTAINS","BELONGS_TO"].includes(e.relation));
     relationPanel.open=true;
-    for(const e of relations){const box=element("div",undefined,"relation-item");box.append(element("p",nodeById(e.source).name+" — "+(labels[e.relation] || e.relation)+" → "+nodeById(e.target).name,"relation-title"),element("p",e.description),element("span",e.reviewStatus==="approved" ? "教师已确认" : e.reviewStatus==="rejected" ? "教师未采纳" : "待教师确认","badge"));
+    for(const e of relations){const box=element("div",undefined,"relation-item");box.append(element("p",nodeById(e.source).name+" — "+(labels[e.relation] || e.relation)+" → "+nodeById(e.target).name,"relation-title"),element("span",e.reviewStatus==="approved" ? "教师已确认" : e.reviewStatus==="rejected" ? "教师未采纳" : "待教师确认","badge"));
+      box.dataset.relation=e.relation;if(e.description)details(box,"关系依据（展开查看）").append(element("p",e.description));
       const reviews=array(state.raw.semantic_priority_review && state.raw.semantic_priority_review.items);
       for(const review of reviews)if(new Set([nodeById(e.source).name].concat(array(properties(nodeById(e.source).raw).previous_names))).has(review.source) && new Set([nodeById(e.target).name].concat(array(properties(nodeById(e.target).raw).previous_names))).has(review.target) && review.relation===e.relation)box.append(element("p","开发复核提示（待教师判断）："+review.reason,"review-item"));
       const sourceList=properties(e.raw).sources;if(Array.isArray(sourceList) && sourceList.length)renderSources(details(box,"查看关系来源"),sourceList);
@@ -236,7 +241,19 @@
     const synonym=state.raw.synonym_review && state.raw.synonym_review.items || [],related=array(synonym).filter(x=>referenceNames.has(x.left) || referenceNames.has(x.right));
     if(related.length){const fold=details(parent,"名称合并建议（"+related.length+"，待审核）"),names={same_proposal:"可能同义",distinct:"概念不同",related_not_synonym:"相关但不宜合并",uncertain:"证据不足"};fold.append(element("p","开发阶段离线建议，未自动合并，也未代替教师审核。","muted"));for(const item of related){const b=element("div",undefined,"evidence");b.append(element("strong",item.left+" / "+item.right+"："+names[item.decision]),element("p",item.reason));for(const ref of array(item.evidence_refs))b.append(element("p","第 "+(ref.page_no || "?")+" 页："+ref.quote,"muted"));fold.append(b);}}
     parent.append(element("h3","管理"),button("删除此知识点及其关系",async()=>{if(!confirm("确定删除“"+node.name+"”及其相关关系？"))return;try{if(state.local){const native=Array.isArray(state.raw.concepts),arr=native ? state.raw.concepts : state.raw.nodes,index=arr.indexOf(node.raw);if(index<0)throw Error("没有找到原始节点。");arr.splice(index,1);const linkedRaw=new Set(state.graph.links.concat(state.graph.hierarchyCandidates).filter(e=>e.source===node.id || e.target===node.id).map(e=>e.raw));for(const key of native ? ["relationships","hierarchy_candidates"] : ["links","hierarchy_candidates"])if(Array.isArray(state.raw[key]))state.raw[key]=state.raw[key].filter(e=>!linkedRaw.has(e));state.selected=null;localChanged();}else{await mutateAndReload("/api/graph/node/"+encodeURIComponent(node.id)+"?course_name="+encodeURIComponent(courseName),"DELETE",undefined,"知识点已删除。");}}catch(error){message("删除失败："+error.message,true);}},"danger"));
-    const deleteNodeButton=Array.from(parent.children).find(e=>e.tagName==="BUTTON" && e.classList.contains("danger"));if(deleteNodeButton)parent.insertBefore(deleteNodeButton,table.nextSibling);
+    const deleteNodeButton=Array.from(parent.children).find(e=>e.tagName==="BUTTON" && e.classList.contains("danger"));
+    const propertiesPanel=details(parent,"节点编号与属性");propertiesPanel.append(table);
+    const advanced=details(parent,"教学角色与补学信息");let current=roleSelect.closest("label");
+    while(current){const next=current.nextSibling;advanced.append(current);if(current===pathBox)break;current=next;}
+    const primaryActions=element("div",undefined,"button-row node-primary-actions");parent.insertBefore(primaryActions,save);primaryActions.append(save,deleteNodeButton);
+    parent.insertBefore(relationPanel,primaryActions.nextSibling);parent.insertBefore(advanced,relationPanel.nextSibling);
+    relationPanel.classList.add("primary-relations");relationPanel.querySelector("summary").textContent="相关关系（"+relations.length+"）";
+    const toolbar=element("div",undefined,"button-row");toolbar.append(button("＋ 新增关系",()=>showEdge(null,node.id)),button("从当前节点连线",()=>{connectFrom=node.id;message("请点击目标节点；Esc 取消连线。");}));
+    relationPanel.insertBefore(toolbar,relationPanel.querySelector("summary").nextSibling);
+    if(relations.length>8){const groups=new Map();for(const box of Array.from(relationPanel.children).filter(e=>e.classList.contains("relation-item"))){const key=box.dataset.relation;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(box);}let first=true;for(const [type,boxes] of groups){const group=details(relationPanel,(labels[type]||type)+"（"+boxes.length+"）");group.open=first;first=false;group.append(...boxes);}}
+    for(const b of Array.from(parent.children).filter(e=>e.tagName==="BUTTON"&&["从此节点连线","新增关系","＋ 添加关系"].includes(e.textContent)))b.remove();
+    for(const heading of Array.from(parent.children).filter(e=>e.tagName==="H3"&&e.textContent==="管理"))heading.remove();
+
   }
   function download(blob,name) {const url=URL.createObjectURL(blob),a=element("a");a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
   function exportSvgMarkup() {
@@ -297,8 +314,9 @@
   $("zoomReset").onclick=()=>{if(chart)chart.resetZoom();};
   $("showEdgeLabels").onchange=()=>{if(chart)chart.setEdgeLabels($("showEdgeLabels").checked);};
   window.addEventListener("beforeunload",e=>{if(state.dirty){e.preventDefault();e.returnValue="";}});
+  if(typeof ResizeObserver!=="undefined"){const fieldResize=new ResizeObserver(()=>{requestAnimationFrame(()=>autosize($("editNodeDescription")));});fieldResize.observe($("inspector"));}
   if(!M){message("图谱数据模块加载失败，请检查静态文件。",true);return;}
-  if(window.cytoscape && window.CourseGraphCanvas && window.CourseGraphMapLayout){chart=window.CourseGraphCanvas.create($("graphContainer"),{cytoscape:window.cytoscape,model:M,mapLayout:window.CourseGraphMapLayout,onVisible,onSelect:id=>choose(id),onEdgeSelect:id=>{const edge=state.graph.links.find(e=>e.id===id);if(edge)showEdge(edge);},onZoom:zoom=>{$("zoomLevel").textContent=Math.round(zoom*100)+"%";}});}
+  if(window.cytoscape && window.CourseGraphCanvas && window.CourseGraphMapLayout){chart=window.CourseGraphCanvas.create($("graphContainer"),{cytoscape:window.cytoscape,model:M,mapLayout:window.CourseGraphMapLayout,onVisible,onSelect:id=>choose(id,false,true),onEdgeSelect:id=>{const edge=state.graph.links.find(e=>e.id===id);if(edge)showEdge(edge);},onZoom:zoom=>{$("zoomLevel").textContent=Math.round(zoom*100)+"%";}});}
   else message("图谱绘制组件加载失败，知识点列表与编辑仍可使用。",true);
   const bootstrap=window.__COURSE_GRAPH_BOOTSTRAP__;
   if(bootstrap){apply(bootstrap,{local:true,dirty:false,ready:true});message("已打开图谱副本，可编辑并导出保存。");}
