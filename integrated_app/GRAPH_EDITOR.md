@@ -21,3 +21,7 @@ Restart start.cmd after switching branches, then refresh the browser.
 
 Additional isolated browser check: creating/deleting both nodes and relationships passed using a temporary fixture. No horizontal page overflow at 390px.
 
+
+## Evidence and spring update
+Source evidence and raw text are collapsed by default. Dragging uses a bounded, damped spring simulation over at most 60 nearby nodes, settling after release; fixed nodes and reduced-motion preferences are respected. The standalone read-only verification script in scripts/verify_graph_delete.py checks both reviewed snapshots and native Neo4j nodes. See scripts/VERIFY_GRAPH_DELETE.md.
+

@@ -15,7 +15,7 @@
   function message(text,error) { $("graphStatus").textContent=text;$("graphStatus").classList.toggle("error",!!error); }
   function button(text,action,cls) {const e=element("button",text,cls);e.type="button";e.addEventListener("click",action);return e;}
   function field(parent,title,tag,value,id) {const label=element("label",title,"field"),input=element(tag);if(id)input.id=id;input.value=value || "";label.append(input);parent.append(label);return input;}
-  function details(parent,title) {const e=element("details"),s=element("summary",title);e.append(s);if(title.startsWith("来源证据"))e.open=true;parent.append(e);return e;}
+  function details(parent,title) {const e=element("details"),s=element("summary",title);e.append(s);parent.append(e);return e;}
   function selectOptions(select,items,value) {select.replaceChildren();for(const item of items){const o=element("option",item[1]);o.value=item[0];select.append(o);}select.value=value == null ? "" : String(value);}
   function documentLabel(id) {const d=state.graph.documents.find(d=>String(d.document_id || d.id)===String(id));return d ? d.file_name || d.chapter_title || d.name || id : id || "来源课件待补充";}
   function refreshDocuments() {const value=$("documentFilter").value;selectOptions($("documentFilter"),[["","全部课件"]].concat(state.graph.documents.map(d=>[String(d.document_id || d.id),d.file_name || d.chapter_title || d.name || d.document_id || d.id])),value);}
@@ -136,12 +136,12 @@
       const pdf=M.sourcePdfLink(state.raw,source);
       if(pdf){const paragraph=element("p"),link=element("a","打开课件第"+pdf.pageNo+"页");link.href=pdf.href;link.target="_blank";link.rel="noopener";paragraph.append(link);box.append(paragraph);}
       if(source.title)box.append(element("p",source.title,"muted"));
-      if(source.extracted_text)box.append(element("p","课件提取文本（待核对）","muted"),element("p",source.extracted_text));
+      if(source.extracted_text)details(box,"查看课件提取原文（待核对）").append(element("pre",source.extracted_text,"source-raw-text"));
       for(const e of array(source.material_evidence)){
         const whole=e.description_scope==="entire_page" || e.source_kind==="full_page";
         const local=e.description_scope==="embedded_image_only" || e.source_kind==="embedded_image";
         const label=e.node_type==="Table" ? "表格转录" : e.node_type==="Formula" ? "公式转录" : whole ? "整页视觉描述" : local ? "局部图片描述" : "关联素材描述";
-        box.append(element("p",label+"（需核对原图）","muted"),element("p",e.text));
+        details(box,label+"（点击展开，需核对原图）").append(element("pre",e.text,"source-raw-text"));
         if(array(e.semantic_review_flags).length)box.append(element("p","这段素材包含待核对的方向、标签或对象归属描述，请结合原图确认。","notice warning"));
       }
       parent.append(box);
