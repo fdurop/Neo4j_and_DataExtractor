@@ -27,9 +27,16 @@ Source evidence and raw text are collapsed by default. Dragging uses a bounded, 
 
 
 ## One-hop focus and compact inspector
-Click a node to highlight its incident edges and direct neighbors; other nodes and edges fade, including edges between neighbors. Click the same node again or click blank canvas to clear the selection. Focus does not relayout nodes. The inspector warns before discarding unsaved text edits.
+Click a node to highlight its incident edges and direct neighbors; other nodes and edges fade, including edges between neighbors. Click the same node again or click blank canvas to clear the selection. Focus temporarily arranges direct neighbors around the selected node; clearing focus restores the original layout. The inspector warns before discarding unsaved text edits.
 
 The description field starts at one visual line, grows with wrapping/input to 240px, then scrolls. Relation controls follow the compact name/description/save area. More than eight relationships are grouped by relation type. IDs, teaching-role controls, learning-path details and source evidence are secondary/collapsible. Relation labels are off by default and appear for focused edges.
 
 Rollback for this update: graph-before-focus-panel-20261031.
 Validation: 139 Python regressions; Cytoscape one-hop/toggle/background/drag/position tests; spring tests; isolated Edge checks for focus, neighbor-edge dimming, textarea growth/shrink, relation ordering/grouping, unsaved-edit confirmation, CRUD and undo. Cloud course data was not modified by these checks.
+
+## Temporary radial focus
+Clicking a node evenly spaces its unique direct neighbors in concentric rings (12, 20, 28, ... slots), with unrelated elements dimmed. Selecting another node starts from the original layout. Clicking the selected node again or blank canvas restores every original position and the previous viewport. Temporary positions are not stored as the course layout; explicit pin preferences survive. Reduced-motion settings use immediate movement.
+
+Rollback for this update: graph-before-radial-focus-20261031.
+
+Validation: Node regression checks cover even ring spacing, multiple rings, exact coordinate and viewport restoration, switching selection, dragging, local storage, pinning and rerender. Isolated Edge checks cover animated radial placement, rapid switching, compact fields, unsaved edits, node/relationship CRUD and undo. No cloud graph data was changed by these tests.
