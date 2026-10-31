@@ -75,7 +75,7 @@ def _mutate(operation, *arguments):
         elif operation is graph_contract.delete_node:
             course = repo.resolve(course_id=identity, name=arguments[1])
             arguments = (arguments[0], course["name"])
-        return jsonify(repo.mutate(operation, *arguments))
+        return jsonify(repo.mutate(operation, *arguments, expected_revision=_expected_revision()))
     # This lock protects concurrent requests in this process, not across workers.
     with _write_lock:
         output, result = operation(load_graphs(), *arguments)
@@ -137,3 +137,29 @@ def edit_link():
 @kg_bp.route("/graph/link", methods=["DELETE"])
 def delete_link():
     return _mutate(graph_contract.delete_link, request.get_json(silent=True))
+
+
+def _expected_revision():
+    value = request.headers.get("X-Graph-Revision")
+    if value is None:
+        return None
+    try:
+        revision = int(value)
+        if revision < 0:
+            raise ValueError()
+        return revision
+    except ValueError:
+        raise GraphError("图谱版本无效。", 400)
+
+
+@kg_bp.post("/graph/undo")
+def undo_graph():
+    repo = current_app.extensions.get("graph_repository")
+    if repo is None:
+        raise GraphError("当前存储不支持撤销。", 409)
+    payload = request.get_json(silent=True) or {}
+    course = repo.resolve(course_id=request.args.get("course_id"), name=payload.get("course_name"))
+    expected = _expected_revision()
+    if expected is None:
+        raise GraphError("撤销需要当前版本号。", 400)
+    return jsonify(repo.undo(course, expected))

@@ -61,9 +61,9 @@ class GraphRepository:
             with driver.session(default_access_mode="READ") as session:
                 rows = session.run("MATCH (c:Course) WHERE c.id IN $ids RETURN c.id AS id, "
                                    "c.review_graph_json AS review, c.model_graph_json AS model, "
-                                   "coalesce(c.review_revision,0) AS revision", ids=ids)
+                                   "coalesce(c.review_revision,0) AS revision, c.previous_review_graph_json AS previous", ids=ids)
                 return {r["id"]: {"graph": json.loads(r["review"]), "model": json.loads(r["model"] or r["review"]),
-                                  "revision": r["revision"]} for r in rows if r["review"]}
+                                  "revision": r["revision"], "previous_graph": json.loads(r["previous"]) if r.get("previous") else None} for r in rows if r["review"]}
         except Exception:
             raise GraphError("数据库图谱读取失败，已保留本地缓存，请检查数据库连接", 503) from None
         finally:
@@ -80,7 +80,7 @@ class GraphRepository:
             record = self._records().get(course["id"])
             return copy.deepcopy(record["graph"]) if record else {"nodes": [], "links": []}
 
-    def _save(self, course, graph, model, previous_revision):
+    def _save(self, course, graph, model, previous_revision, remember=True):
         revision = previous_revision + 1
         graph = copy.deepcopy(graph)
         graph["review_revision"] = revision
@@ -93,12 +93,13 @@ class GraphRepository:
                     with session.begin_transaction() as tx:
                         row = tx.run("MERGE (c:Course {id:$id}) ON CREATE SET c.course_id=$id, c.course_name=$name "
                                      "WITH c WHERE coalesce(c.review_revision,0)=$expected "
+                                     "SET c.previous_review_graph_json=CASE WHEN $remember THEN c.review_graph_json ELSE null END "
                                      "SET c.review_graph_json=$review, c.model_graph_json=$model, "
                                      "c.review_revision=$revision, c.review_updated_at=$updated "
                                      "RETURN c.review_revision AS revision", id=course["id"], name=course["name"],
                                      expected=previous_revision, review=json.dumps(graph, ensure_ascii=False, allow_nan=False),
                                      model=json.dumps(model, ensure_ascii=False, allow_nan=False), revision=revision,
-                                     updated=datetime.now(timezone.utc).isoformat()).single()
+                                     updated=datetime.now(timezone.utc).isoformat(), remember=remember).single()
                         if row is None:
                             raise GraphError("图谱已被其他操作更新，请重新加载后再保存", 409)
                         tx.commit()
@@ -112,7 +113,8 @@ class GraphRepository:
         self.cache_warning = None
         try:
             records = json.loads(self.records_path.read_text(encoding="utf-8")) if self.records_path.exists() else {}
-            records[course["id"]] = {"graph": graph, "model": model, "revision": revision}
+            previous = records.get(course["id"], {}).get("graph") if remember else None
+            records[course["id"]] = {"graph": graph, "model": model, "revision": revision, "previous_graph": previous}
             atomic_json(self.records_path, records)
             atomic_json(self.path, {c["name"]: records[c["id"]]["graph"] for c in self.courses() if c["id"] in records})
         except (OSError, ValueError):
@@ -121,18 +123,31 @@ class GraphRepository:
             self.cache_warning = "云端图谱已保存，本地缓存更新失败；请修复运行目录权限，勿重复付费提取。"
         return graph
 
-    def mutate(self, operation, *arguments):
+    def mutate(self, operation, *arguments, expected_revision=None):
         with self.lock:
             records = self._records()
             graphs = {c["name"]: copy.deepcopy(records[c["id"]]["graph"]) for c in self.courses() if c["id"] in records}
             output, result = operation(graphs, *arguments)
             course = self.resolve(name=result.get("course_name"))
             record = records.get(course["id"], {"revision": 0, "model": {"nodes": [], "links": []}})
+            if expected_revision is not None and record["revision"] != expected_revision:
+                raise GraphError("图谱已被其他页面更新，请重新加载后再修改。", 409)
             graph = self._save(course, output[course["name"]], record["model"], record["revision"])
             result["review_revision"] = graph["review_revision"]
             if self.cache_warning:
                 result["warnings"] = [self.cache_warning]
             return result
+
+    def undo(self, course, expected_revision):
+        with self.lock:
+            record = self._records().get(course["id"])
+            if not record or record["revision"] != expected_revision:
+                raise GraphError("图谱版本已变化，请重新加载。", 409)
+            previous = record.get("previous_graph")
+            if previous is None:
+                raise GraphError("没有可撤销的修改。", 409)
+            graph = self._save(course, previous, record["model"], record["revision"], remember=False)
+            return {"success": True, "review_revision": graph["review_revision"]}
 
     def publish(self, job, result):
         course = self.resolve(course_id=job["course_id"], name=job["course_name"])

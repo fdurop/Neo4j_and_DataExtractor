@@ -5,14 +5,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>课程知识图谱 · 教学助手</title>
-  <link rel="stylesheet" href="{% static 'css/knowledge_graph.css' %}?v=20261025-loadstate1">
-  <script defer src="{% static 'js/knowledge_graph_model.js' %}?v=20261025-loadstate1"></script>
+  <link rel="stylesheet" href="{% static 'css/knowledge_graph.css' %}?v=20261031-interactive1">
+  <script defer src="{% static 'js/knowledge_graph_model.js' %}?v=20261031-interactive1"></script>
   <script defer src="{% static 'js/export_metadata.js' %}?v=20261024-semantic1"></script>
   <script defer src="{% static 'js/vendor/cytoscape.min.js' %}"></script>
   <script defer src="{% static 'js/graph_map_layout.js' %}?v=20261024-semantic1"></script>
   <script defer src="{% static 'js/graph_canvas.js' %}?v=20261024-semantic1"></script>
-  <script defer src="{% static 'js/knowledge_graph.js' %}?v=20261025-loadstate1"></script>
-</head>
+  <script defer src="{% static 'js/interactive_graph.js' %}?v=20261031-1"></script>
+  <script defer src="{% static 'js/knowledge_graph.js' %}?v=20261031-interactive1"></script>
+<style>
+  :root {--controls-height:96px} .map-controls{flex-wrap:wrap;align-content:center;padding:8px 12px;gap:8px}.map-actions{flex-wrap:wrap}.map-actions button{min-height:32px}.node-properties{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:12px;background:#f6f8f9;padding:12px;border-radius:6px}.node-properties dt{color:#667580}.node-properties dd{margin:0;overflow-wrap:anywhere}.inspector-card{width:min(440px,100vw)}.inspector textarea{min-height:100px}.inspector>button{margin:6px 6px 6px 0}.node-list{max-height:100px} @media(max-width:850px){:root{--controls-height:160px}.map-controls{display:flex}.map-search{flex-basis:100%}.map-actions{margin-left:0}.inspector-card{width:100%}}
+  </style></head>
 <body>
 <main class="kg-page">
   <header class="kg-header">
@@ -48,6 +51,8 @@
         </nav>
         <label class="map-search" for="graphSearch"><span class="sr-only">搜索知识点</span><input id="graphSearch" type="search" placeholder="搜索知识点"></label>
         <div class="map-actions">
+          <button id="toolbarAddNode" type="button">＋ 节点</button><button id="toolbarAddEdge" type="button">＋ 关系</button>
+          <button id="relayoutGraph" type="button">重新布局</button><button id="pauseGraph" type="button">暂停牵动</button><button id="pinNode" type="button">固定 / 解锁节点</button><button id="undoGraph" type="button">撤销修改</button>
           <button id="toggleFilters" type="button" aria-expanded="false" aria-controls="filterPanel">筛选</button>
           <button id="toggleInspector" type="button" aria-expanded="false" aria-controls="inspectorDrawer">知识点</button>
           <button id="toggleFullscreen" type="button" aria-pressed="false" title="切换全屏聚焦">聚焦</button>
@@ -62,7 +67,7 @@
         <div class="filter-checks">
           <label for="showDetails"><input id="showDetails" type="checkbox"> 显示全部细节</label>
           <label for="showPending"><input id="showPending" type="checkbox" checked> 显示待确认关系</label>
-          <label for="showEdgeLabels"><input id="showEdgeLabels" type="checkbox"> 关系名称</label>
+          <label for="showEdgeLabels"><input id="showEdgeLabels" type="checkbox" checked> 关系名称</label>
         </div>
         <div class="legend" aria-label="图谱标记说明">
           <span><i class="dot confirmed" aria-hidden="true"></i>教师确认</span>
@@ -90,7 +95,7 @@
             <button id="zoomReset" type="button" title="恢复概览比例">100%</button>
             <button id="fitGraph" type="button" title="缩小查看本档全图；100%恢复可读比例">全图概览</button>
           </div>
-          <div class="detail-indicator"><output id="detailLevel" aria-label="当前细节层级" aria-live="polite">主干</output><span>缩小看主干，放大看细节</span></div>
+          <div class="detail-indicator"><output id="detailLevel" aria-label="当前细节层级" aria-live="polite">主干</output><span>拖动节点 · 点击资料 · 右键固定</span></div>
         </div>
       </div>
     </div>
@@ -118,7 +123,7 @@
 </dialog>
 <dialog id="edgeDialog" aria-labelledby="edgeTitle">
   <form id="edgeForm">
-    <h2 id="edgeTitle">新增关系</h2>
+    <h2 id="edgeTitle">新增关系</h2><button id="deleteSelectedEdge" type="button" class="danger" hidden>删除这条关系</button>
     <p class="muted">先修方向为“先学 → 后学”，包含方向为“整体 → 部分”。组成、分类与运行依赖分别记录。</p>
     <label for="edgeSource">源概念<select id="edgeSource" required></select></label>
     <label for="edgeType">关系类型<select id="edgeType"><option value="PREREQUISITE_OF">是学习……的前置</option><option value="HAS_PART">包含</option><option value="PART_OF">是……的组成部分</option><option value="IS_A">是……的一种</option><option value="RELATED_TO">相关</option><option value="REQUIRES">运行时需要</option><option value="APPLIES_TO">应用于</option><option value="HAS_PARAMETER">具有参数</option></select></label>

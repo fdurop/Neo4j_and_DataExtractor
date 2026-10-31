@@ -7,7 +7,7 @@
   const array = value => Array.isArray(value) ? value : [];
   const properties = record => Object.assign({},record && record.properties || {},record || {});
   const nodeById = id => state.graph && state.graph.nodes.find(n => n.id === id);
-  let chart = null, requestVersion = 0;
+  let chart = null, requestVersion = 0, connectFrom = null;
   const params = new URLSearchParams(location.search);
   const courseName = params.get("course_name") || "";
   const courseId = params.get("course_id") || "";
@@ -15,14 +15,14 @@
   function message(text,error) { $("graphStatus").textContent=text;$("graphStatus").classList.toggle("error",!!error); }
   function button(text,action,cls) {const e=element("button",text,cls);e.type="button";e.addEventListener("click",action);return e;}
   function field(parent,title,tag,value,id) {const label=element("label",title,"field"),input=element(tag);if(id)input.id=id;input.value=value || "";label.append(input);parent.append(label);return input;}
-  function details(parent,title) {const e=element("details"),s=element("summary",title);e.append(s);parent.append(e);return e;}
+  function details(parent,title) {const e=element("details"),s=element("summary",title);e.append(s);if(title.startsWith("来源证据"))e.open=true;parent.append(e);return e;}
   function selectOptions(select,items,value) {select.replaceChildren();for(const item of items){const o=element("option",item[1]);o.value=item[0];select.append(o);}select.value=value == null ? "" : String(value);}
   function documentLabel(id) {const d=state.graph.documents.find(d=>String(d.document_id || d.id)===String(id));return d ? d.file_name || d.chapter_title || d.name || id : id || "来源课件待补充";}
   function refreshDocuments() {const value=$("documentFilter").value;selectOptions($("documentFilter"),[["","全部课件"]].concat(state.graph.documents.map(d=>[String(d.document_id || d.id),d.file_name || d.chapter_title || d.name || d.document_id || d.id])),value);}
   async function api(path,method,payload) {
     const target = new URL(path, location.origin);
     if (courseId) target.searchParams.set("course_id", courseId);
-    const response=await fetch(target.pathname+target.search,{method:method || "GET",credentials:"same-origin",headers:payload ? {"Content-Type":"application/json"} : {},body:payload ? JSON.stringify(payload) : undefined});
+    const response=await fetch(target.pathname+target.search,{method:method || "GET",credentials:"same-origin",headers:Object.assign(payload ? {"Content-Type":"application/json"} : {}, method && method!=="GET" && !state.local ? {"X-Graph-Revision":String(state.raw?.review_revision || 0)} : {}),body:payload ? JSON.stringify(payload) : undefined});
     let result;try {result=await response.json();}catch(_){throw Error("服务返回了无法识别的内容，请检查图谱接口。");}
     if(!response.ok || result.error || result.success===false){const error=Error(result.message || (result.error && result.error.message) || result.error || "图谱操作失败（"+response.status+"）");error.status=response.status;throw error;}
     return result;
@@ -105,6 +105,7 @@
     $("graphSummary").textContent="视野 "+info.nodes.length+" 节点 / "+info.links.length+" 关系 · 本档 "+info.tierNodeCount+" / "+info.totalNodes+" 节点 · 整课 "+state.courseCounts.nodes+" 节点 / "+state.courseCounts.links+" 关系";
   }
   function choose(id,focus) {
+    if(connectFrom && id!==connectFrom){const source=connectFrom;connectFrom=null;showEdge(null,source);$("edgeTarget").value=id;return;}
     state.selected=id;setInspector(true);if(chart)chart.select(id,!!focus);
     $("nodeList").querySelectorAll("[data-node-id]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.nodeId===id)));
     renderInspector();
@@ -191,7 +192,7 @@
     selectOptions($("edgeTarget"),choices,edge ? edge.target : choices.find(x=>x[0]!==$("edgeSource").value)?.[0]);
     $("edgeSource").disabled=!!edge;$("edgeTarget").disabled=!!edge;
     if(edge && !Array.from($("edgeType").options).some(o=>o.value===edge.relation)){const o=element("option",edge.relation);o.value=edge.relation;$("edgeType").append(o);}
-    $("edgeType").value=edge ? edge.relation : "PREREQUISITE_OF";$("edgeDescription").value=edge ? edge.description : "";$("edgeApproved").checked=false;$("edgeDialogError").textContent="";$("edgeDialog").showModal();
+    $("edgeType").value=edge ? edge.relation : "PREREQUISITE_OF";$("edgeDescription").value=edge ? edge.description : "";$("edgeApproved").checked=!!edge && edge.reviewStatus==="approved";$("deleteSelectedEdge").hidden=!edge;$("edgeDialogError").textContent="";$("edgeDialog").showModal();
   }
   async function removeEdge(edge) {
     if(!confirm("删除这条关系？\n"+nodeById(edge.source).name+" → "+nodeById(edge.target).name))return;
@@ -207,6 +208,9 @@
     if(raw.model_update_pending)parent.append(element("p","模型有新的候选内容。当前教师决定已保留，请结合证据复核。","notice warning"));
     const name=field(parent,"名称","input",node.name,"editNodeName"),description=field(parent,"说明","textarea",node.description,"editNodeDescription");
     const save=button("保存文字",()=>{const next=name.value.trim();if(!next || state.graph.nodes.some(n=>n.id!==node.id && n.name===next)){message("名称不能为空或与当前课程其他节点重复。",true);return;}saveNode(node,{name:next,description:description.value.trim()},next);},"primary");parent.append(save);
+    const table=element("dl",undefined,"node-properties");for(const [label,value] of [["节点编号",node.id],["类型",node.kind],["来源页数",node.sources.length],["审核状态",node.reviewStatus]]){table.append(element("dt",label),element("dd",value));}parent.append(table);
+    parent.append(button("从此节点连线",()=>{connectFrom=node.id;message("请点击目标节点；Esc 取消连线。");}),button("新增关系",()=>showEdge(null,node.id)));
+
     const roleSelect=field(parent,"教学角色","select","","editTeachingRole");
     selectOptions(roleSelect,[["pending","待判断"],["learning","教学知识点"],["detail","素材细节"],["context_dependent","不同页面用途不一"]],node.teachingRole);
     parent.append(button("确认教学角色",()=>saveNode(node,{teaching_role:roleSelect.value,role_review_status:roleSelect.value==="pending" ? "pending" : "approved",role_reviewed_at:new Date().toISOString()})));
@@ -218,6 +222,7 @@
     renderSources(details(parent,"来源证据（"+node.sources.length+"页）"),node.sources);
     if(node.pageObservations.length){const contexts=details(parent,"逐页语境与模型建议（待确认）");for(const o of node.pageObservations){const b=element("div",undefined,"evidence"),s=node.sources.find(s=>s.page_id===o.page_id);b.append(element("strong",s ? "第 "+s.page_no+" 页 · "+(o.observed_name || node.name) : o.observed_name || node.name));if(o.description)b.append(element("p",o.description));if(o.learning_objective)b.append(element("p","建议学习目标："+o.learning_objective));if(Array.isArray(o.aliases_suggested_in_context) && o.aliases_suggested_in_context.length)b.append(element("p","本页建议称呼（非全局同义）："+o.aliases_suggested_in_context.join("、"),"muted"));contexts.append(b);}}
     const relationPanel=details(parent,"相关关系"),relations=state.graph.links.filter(e=>(e.source===node.id || e.target===node.id) && !["HAS_EVIDENCE","CONTAINS","BELONGS_TO"].includes(e.relation));
+    relationPanel.open=true;
     for(const e of relations){const box=element("div",undefined,"relation-item");box.append(element("p",nodeById(e.source).name+" — "+(labels[e.relation] || e.relation)+" → "+nodeById(e.target).name,"relation-title"),element("p",e.description),element("span",e.reviewStatus==="approved" ? "教师已确认" : e.reviewStatus==="rejected" ? "教师未采纳" : "待教师确认","badge"));
       const reviews=array(state.raw.semantic_priority_review && state.raw.semantic_priority_review.items);
       for(const review of reviews)if(new Set([nodeById(e.source).name].concat(array(properties(nodeById(e.source).raw).previous_names))).has(review.source) && new Set([nodeById(e.target).name].concat(array(properties(nodeById(e.target).raw).previous_names))).has(review.target) && review.relation===e.relation)box.append(element("p","开发复核提示（待教师判断）："+review.reason,"review-item"));
@@ -231,6 +236,7 @@
     const synonym=state.raw.synonym_review && state.raw.synonym_review.items || [],related=array(synonym).filter(x=>referenceNames.has(x.left) || referenceNames.has(x.right));
     if(related.length){const fold=details(parent,"名称合并建议（"+related.length+"，待审核）"),names={same_proposal:"可能同义",distinct:"概念不同",related_not_synonym:"相关但不宜合并",uncertain:"证据不足"};fold.append(element("p","开发阶段离线建议，未自动合并，也未代替教师审核。","muted"));for(const item of related){const b=element("div",undefined,"evidence");b.append(element("strong",item.left+" / "+item.right+"："+names[item.decision]),element("p",item.reason));for(const ref of array(item.evidence_refs))b.append(element("p","第 "+(ref.page_no || "?")+" 页："+ref.quote,"muted"));fold.append(b);}}
     parent.append(element("h3","管理"),button("删除此知识点及其关系",async()=>{if(!confirm("确定删除“"+node.name+"”及其相关关系？"))return;try{if(state.local){const native=Array.isArray(state.raw.concepts),arr=native ? state.raw.concepts : state.raw.nodes,index=arr.indexOf(node.raw);if(index<0)throw Error("没有找到原始节点。");arr.splice(index,1);const linkedRaw=new Set(state.graph.links.concat(state.graph.hierarchyCandidates).filter(e=>e.source===node.id || e.target===node.id).map(e=>e.raw));for(const key of native ? ["relationships","hierarchy_candidates"] : ["links","hierarchy_candidates"])if(Array.isArray(state.raw[key]))state.raw[key]=state.raw[key].filter(e=>!linkedRaw.has(e));state.selected=null;localChanged();}else{await mutateAndReload("/api/graph/node/"+encodeURIComponent(node.id)+"?course_name="+encodeURIComponent(courseName),"DELETE",undefined,"知识点已删除。");}}catch(error){message("删除失败："+error.message,true);}},"danger"));
+    const deleteNodeButton=Array.from(parent.children).find(e=>e.tagName==="BUTTON" && e.classList.contains("danger"));if(deleteNodeButton)parent.insertBefore(deleteNodeButton,table.nextSibling);
   }
   function download(blob,name) {const url=URL.createObjectURL(blob),a=element("a");a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
   function exportSvgMarkup() {
@@ -265,6 +271,13 @@
       $("edgeDialog").close();
     } catch(error){fail(error.message);}
   });
+  $("toolbarAddNode").onclick=()=>$("addNode").click();
+  $("toolbarAddEdge").onclick=()=>showEdge(null,state.selected);
+  $("deleteSelectedEdge").onclick=async()=>{if(state.edge){await removeEdge(state.edge);$("edgeDialog").close();}};
+  $("relayoutGraph").onclick=()=>chart?.relayout();
+  $("pauseGraph").onclick=()=>{$("pauseGraph").textContent=chart?.pause()?"恢复牵动":"暂停牵动";};
+  $("pinNode").onclick=()=>{const result=chart?.pin();message(result===null?"请先选择节点。":result?"节点位置已固定，右键可解锁。":"节点已解锁。");};
+  $("undoGraph").onclick=async()=>{if(state.local)return message("导入副本请重新导入原文件恢复；撤销用于已保存的课程。",true);if(!confirm("撤销当前课程上一次保存的图谱修改？"))return;try{await mutateAndReload("/api/graph/undo","POST",{course_name:courseName},"已撤销上一次修改。");}catch(e){message(e.message,true);}};
   $("addNode").onclick=()=>{if(!state.graph)return message("请先加载或导入图谱。",true);$("nodeForm").reset();$("nodeDialogError").textContent="";$("nodeDialog").showModal();};
   document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).close());
   document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{state.mode=b.dataset.mode;render();});
@@ -280,12 +293,12 @@
   $("closeInspector").onclick=()=>{setInspector(false);$("toggleInspector").focus();};
   $("toggleFilters").onclick=()=>setFilters($("filterPanel").hidden);
   $("toggleFullscreen").onclick=()=>{const active=document.querySelector(".kg-page").classList.toggle("is-fullscreen");$("toggleFullscreen").setAttribute("aria-pressed",String(active));$("toggleFullscreen").textContent=active ? "退出聚焦" : "聚焦";};
-  document.addEventListener("keydown",event=>{if(event.key==="Escape" && !document.querySelector("dialog[open]")){setFilters(false);setInspector(false);}});
+  document.addEventListener("keydown",event=>{if(event.key==="Escape")connectFrom=null;if(event.key==="Escape" && !document.querySelector("dialog[open]")){setFilters(false);setInspector(false);}});
   $("zoomReset").onclick=()=>{if(chart)chart.resetZoom();};
   $("showEdgeLabels").onchange=()=>{if(chart)chart.setEdgeLabels($("showEdgeLabels").checked);};
   window.addEventListener("beforeunload",e=>{if(state.dirty){e.preventDefault();e.returnValue="";}});
   if(!M){message("图谱数据模块加载失败，请检查静态文件。",true);return;}
-  if(window.cytoscape && window.CourseGraphCanvas && window.CourseGraphMapLayout){chart=window.CourseGraphCanvas.create($("graphContainer"),{cytoscape:window.cytoscape,model:M,mapLayout:window.CourseGraphMapLayout,onVisible,onSelect:id=>choose(id),onZoom:zoom=>{$("zoomLevel").textContent=Math.round(zoom*100)+"%";}});}
+  if(window.cytoscape && window.CourseGraphCanvas && window.CourseGraphMapLayout){chart=window.CourseGraphCanvas.create($("graphContainer"),{cytoscape:window.cytoscape,model:M,mapLayout:window.CourseGraphMapLayout,onVisible,onSelect:id=>choose(id),onEdgeSelect:id=>{const edge=state.graph.links.find(e=>e.id===id);if(edge)showEdge(edge);},onZoom:zoom=>{$("zoomLevel").textContent=Math.round(zoom*100)+"%";}});}
   else message("图谱绘制组件加载失败，知识点列表与编辑仍可使用。",true);
   const bootstrap=window.__COURSE_GRAPH_BOOTSTRAP__;
   if(bootstrap){apply(bootstrap,{local:true,dirty:false,ready:true});message("已打开图谱副本，可编辑并导出保存。");}
