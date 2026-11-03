@@ -1,0 +1,72 @@
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const root=path.join(__dirname,'../frontend/static/js/');
+global.location={search:'?course_id=focus-test'};
+let stored;
+global.localStorage={getItem:()=>null,setItem:(key,value)=>{stored=JSON.parse(value);}};
+global.matchMedia=()=>({matches:true});
+const cytoscape=require(root+'vendor/cytoscape.min.js');
+const api=require(root+'interactive_graph.js')(require(root+'graph_canvas.js'));
+const rings=api.radialPositions({x:3,y:7},Array.from({length:35},(_,i)=>String(i)));
+assert.equal(rings.size,35);
+for(let i=0;i<35;i++){const p=rings.get(String(i));assert(Math.abs(Math.hypot(p.x-3,p.y-7)-(i<12?180:i<32?340:500))<1e-8);}
+let cy,focus=null,canvas;const editedEdges=[];
+canvas=api.create(null,{
+ cytoscape:options=>(cy=cytoscape({...options,container:undefined,headless:true,styleEnabled:true})),
+ onSelect:id=>{focus=id===focus?null:id;canvas.select(focus);},
+ onEdgeSelect:id=>editedEdges.push(id)
+});
+const graph={mode:'overview',nodes:['a','b','c','d'].map(id=>({id,name:id,importanceLevel:id==='a'?1:id==='b'?2:3})),links:[['a','b'],['a','c'],['b','c']].map(([source,target],i)=>({id:String(i),source,target,relation:'RELATED_TO'}))};
+graph.links.push({id:'parallel',source:'a',target:'b',relation:'SECOND_RELATION'});
+canvas.render(graph,null,{});
+assert.equal(cy.getElementById('a').data('neighborCount'),2,'Parallel relationships count as one neighboring node');
+assert(cy.getElementById('a').width()/cy.getElementById('d').width()>2,'A hub should be visibly larger than an isolated node');
+assert.equal(new Set(cy.nodes().map(n=>n.style('background-color'))).size,3,'Importance tiers have distinct colors');
+assert(cy.nodes().every(n=>n.width()>=44&&n.width()<=96),'Node sizes remain bounded with a visible connectivity contrast');
+const snapshot=()=>cy.nodes().map(n=>({...n.position()}));
+const before=snapshot(),camera={zoom:cy.zoom(),pan:{...cy.pan()}};
+const original=new Map(cy.nodes().map(n=>[n.id(),{...n.position()}]));
+const sameOriginal=()=>assert.deepEqual(snapshot(),before,'Clearing focus must restore every original position');
+cy.getElementById('a').emit('tap');
+assert(cy.getElementById('a').selected());
+assert(!cy.getElementById('b').hasClass('dimmed'));
+assert(!cy.getElementById('c').hasClass('dimmed'));
+assert(cy.getElementById('d').hasClass('dimmed'));
+assert(cy.getElementById('edge:2').hasClass('dimmed'),'Neighbor-to-neighbor edges must fade');
+assert(!cy.getElementById('edge:0').hasClass('dimmed'));
+assert.deepEqual(cy.getElementById('a').position(),original.get('a'));
+assert.deepEqual(cy.getElementById('d').position(),original.get('d'));
+const center=cy.getElementById('a').position(),focusRadius=180*Math.min(4,Math.max(1,.65/cy.zoom()));
+for(const id of ['b','c']){const p=cy.getElementById(id).position();assert(Math.abs(Math.hypot(p.x-center.x,p.y-center.y)-focusRadius)<1e-8);}
+const b=cy.getElementById('b').position(),c=cy.getElementById('c').position();
+assert(Math.abs(b.x+c.x-2*center.x)<1e-8&&Math.abs(b.y+c.y-2*center.y)<1e-8,'Two neighbors must be evenly opposed');
+cy.getElementById('a').emit('grab');cy.getElementById('a').position({x:100,y:100});cy.getElementById('a').emit('dragfree');
+assert(cy.getElementById('a').selected(),'Dragging must not toggle selection');
+assert.deepEqual({x:stored.b.x,y:stored.b.y},original.get('b'),'Temporary radial positions must not be stored');
+canvas.pin();assert(cy.getElementById('a').locked());
+cy.getElementById('a').emit('tap');assert.equal(cy.elements('.dimmed').length,0);sameOriginal();
+assert(cy.getElementById('a').locked(),'Explicit pin preferences survive restoration');
+assert.deepEqual({zoom:cy.zoom(),pan:{...cy.pan()}},camera);
+cy.getElementById('a').emit('tap');
+const clickedNeighbor={...cy.getElementById('b').position()},cameraBeforeSwitch={zoom:cy.zoom(),pan:{...cy.pan()}};
+cy.getElementById('b').emit('tap');
+assert.deepEqual(cy.getElementById('b').position(),clickedNeighbor,'Switching to a neighbor keeps it where it was clicked');
+assert.deepEqual({zoom:cy.zoom(),pan:{...cy.pan()}},cameraBeforeSwitch,'Selecting never changes camera');
+cy.emit('tap');sameOriginal();assert.equal(cy.nodes(':selected').length,0);
+cy.getElementById('a').emit('tap');canvas.render(graph,null,{selected:'a'});cy.emit('tap');sameOriginal();
+cy.getElementById('a').emit('tap');cy.zoom(.4);cy.pan({x:45,y:67});cy.emit('tap');
+assert.deepEqual({zoom:cy.zoom(),pan:{...cy.pan()}},{zoom:.4,pan:{x:45,y:67}},'Clearing selection preserves user zoom and pan');
+assert(cy.getElementById('a').width()>cy.getElementById('d').width(),'A connected node is slightly larger than an isolate');
+cy.getElementById('a').emit('tap');cy.getElementById('d').emit('tap');
+assert.equal(focus,null,'Clicking an unrelated node cancels selection instead of selecting it');
+assert.equal(cy.nodes(':selected').length,0);sameOriginal();
+cy.getElementById('a').emit('tap');cy.getElementById('edge:2').emit('tap');
+assert.equal(focus,null,'Even an edge between two neighbors cancels if it does not touch the selected node');
+assert.equal(editedEdges.length,0,'An unrelated relationship must not open its editor');sameOriginal();
+cy.getElementById('a').emit('tap');cy.getElementById('edge:0').emit('tap');
+assert.deepEqual(editedEdges,['0'],'A relationship incident to the selected node opens the editor');
+assert.equal(focus,'a');assert(cy.getElementById('a').selected(),'Editing a relationship retains node context');
+cy.getElementById('a').emit('tap');assert.equal(focus,null);sameOriginal();
+cy.getElementById('edge:2').emit('tap');assert.deepEqual(editedEdges,['0','2'],'Without node focus any relationship can be inspected');
+canvas.destroy();
+console.log('Radial spacing, multi-ring layout, exact restoration, selection switching, dragging, storage, pinning, rerender and fading passed');

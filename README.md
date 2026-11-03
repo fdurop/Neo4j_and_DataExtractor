@@ -1,3 +1,5 @@
+> 当前完整教学助手项目位于 [integrated_app](integrated_app/README.md)。请进入该目录，按说明配置环境并双击 `start.cmd`，再访问 `http://127.0.0.1:8769/login/`。
+
 # 多模态教学知识图谱与 Graph RAG 系统
 
 本项目用于将课程课件的结构化抽取结果构建为一个结合 **Neo4j 知识图谱**、**Pinecone 向量检索**和**多模态大模型**的教学问答系统。

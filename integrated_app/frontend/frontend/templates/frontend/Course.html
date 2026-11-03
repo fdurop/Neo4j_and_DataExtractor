@@ -1,0 +1,213 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>教师界面 - fdurop智能问答助手</title>
+
+  <link rel="stylesheet" href="{% static 'css/header.css' %}?v=1">
+  <link rel="stylesheet" href="{% static 'css/teacher.css' %}?v=1">
+
+  <meta name="color-scheme" content="light dark">
+
+  <style>
+    /* ===== 页面基础 ===== */
+    body {
+      margin: 0;
+      background: #f6f8fc;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    }
+
+    /* ⭐ 保证 header 永远可点 */
+    header {
+      position: relative;
+      z-index: 9999;
+    }
+
+    .app-main {
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    /* ===== 卡片统一风格 ===== */
+    section {
+      background: #fff;
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+      transition: 0.2s;
+    }
+
+    section:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    /* ===== 图谱按钮区域 ===== */
+    .quick-actions {
+      display: flex;
+      justify-content: center;
+    }
+
+    .graph-btn {
+      background: linear-gradient(135deg,#3b82f6,#2563eb);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 28px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: 0.25s;
+      box-shadow: 0 4px 12px rgba(37,99,235,.3);
+    }
+
+    .graph-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 18px rgba(37,99,235,.45);
+    }
+
+    /* ===== 上传区域 ===== */
+    .upload-area {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      background: #fafcff;
+      transition: 0.2s;
+    }
+
+    .upload-area:hover {
+      border-color: #3b82f6;
+      background: #f0f6ff;
+    }
+
+    .upload-btn {
+      margin-top: 16px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 22px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .upload-btn:hover {
+      background: #2563eb;
+    }
+
+    /* ===== 文件列表 ===== */
+    .file-items {
+      margin-top: 14px;
+    }
+
+    .no-files {
+      color: #999;
+      font-size: 14px;
+    }
+
+    /* ===== 进度条 ===== */
+    .progress-bar {
+      height: 10px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #3b82f6;
+      width: 0%;
+      transition: width .2s;
+    }
+    .processing-item { padding: 18px 0; border-bottom: 1px solid #e2e8f0; }
+    .processing-item progress { width: min(100%, 400px); accent-color: #2563eb; }
+    .processing-item button { margin-left: 12px; }
+    .task-state { font-weight: 600; }
+    .task-error, .status-message.error { color: #b91c1c; overflow-wrap: anywhere; }
+    .task-message { color: #475569; }
+    .task-succeeded .task-state { color: #047857; }
+    .task-failed .task-state { color: #b91c1c; }
+  </style>
+</head>
+
+<body>
+<div class="app">
+
+  {% include "frontend/header.html" %}
+
+  <main class="app-main">
+    <h1 id="courseTitle">课程资料</h1>
+
+    <!-- ⭐ 图谱入口 -->
+    <section>
+      <div class="quick-actions">
+        <button class="graph-btn" onclick="navigateToKnowledgeGraph()">
+          🌐 查看知识图谱
+        </button>
+        <a id="materialReviewLink" style="margin-left:20px;align-self:center;" href="/repair/">核对课程素材</a>
+      </div>
+    </section>
+
+
+    <!-- 上传资源 -->
+    <section class="file-upload-section" id="uploadSection">
+      <h2>教学资源上传</h2>
+
+      <div class="upload-area" id="uploadArea">
+        <p>拖拽文件到此处或点击选择文件</p>
+        <p style="font-size:13px;color:#888;">支持 PDF 课件。上传完成后可在下方查看提取、建图与保存状态。</p>
+
+        <input type="file" id="fileInput" accept=".pdf,application/pdf" multiple hidden>
+        <button class="upload-btn" id="chooseFileBtn">选择文件</button>
+      </div>
+
+      <div class="file-list" id="fileList">
+        <h3>已上传文件</h3>
+        <div class="file-items" id="fileItems">
+          <div class="no-files">暂无文件</div>
+        </div>
+      </div>
+
+      <div class="upload-progress" id="uploadProgress" hidden>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div id="progressText">上传中... 0%</div>
+      </div>
+
+      <div class="status-message" id="statusMessage" hidden></div>
+    </section>
+
+
+    <!-- 处理进度 -->
+    <section id="processingProgress" hidden>
+      <h2>文件处理进度</h2>
+      <div id="processingItems">
+        <div class="no-processing">暂无正在处理的文件</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+
+<script src="{% static 'js/app_contract.js' %}"></script>
+<script src="{% static 'js/header.js' %}"></script>
+<script src="{% static 'js/course.js' %}?v=20261103-retry"></script>
+
+</body>
+</html>

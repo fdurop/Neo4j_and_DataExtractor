@@ -1,0 +1,149 @@
+{
+  "author": "昕煜 冷",
+  "date": "2026-10-23",
+  "status": "passed",
+  "application_root": "D:/extraction-main/integrated_app",
+  "url": "http://127.0.0.1:8769",
+  "startup": {
+    "current_computer": "双击 start.cmd；当前服务已启动时直接打开网页。",
+    "new_environment": "安装 Python 3.12，运行 setup.ps1；按 config/local.env.example 在本机填写 config/local.env，再运行 start.cmd。",
+    "dependencies": "requirements.lock.txt 固定本轮验证过的依赖版本。",
+    "credentials": "密钥只保存在被忽略的 config/local.env；复制或交付源码时排除此文件和 runtime。",
+    "test_account": "runtime/demo_login.local.json 仅供本机联调使用；网页也支持自行注册账号。"
+  },
+  "changes": [
+    {
+      "path": "serve.py",
+      "change": "Django 页面与 Flask API 共用8769端口；真实会话登录；独立数据目录及单实例锁。"
+    },
+    {
+      "path": "backend/routes",
+      "change": "适配登录、课程、PDF上传、持久化任务、图谱编辑、来源问答与素材核对。"
+    },
+    {
+      "path": "backend/services/jobs.py",
+      "change": "独立课程和任务编号；进度、失败、取消持久保存；重启不自动重复收费任务。"
+    },
+    {
+      "path": "scripts/pipeline_worker.py",
+      "change": "接入新版完整PDF提取与建图引擎；调用前校验PDF、云库与预算；分任务保存产物。"
+    },
+    {
+      "path": "engines/extraction",
+      "change": "复制新版提取器；每轮素材身份包含任务编号；未启用向量接口。"
+    },
+    {
+      "path": "engines/graph",
+      "change": "复制新版建图器；显式选择Neo4j数据库并验证TLS证书；按课程写入和读回。"
+    },
+    {
+      "path": "backend/services/graph_repository.py",
+      "change": "Neo4j保存可编辑图谱快照与版本；重建时保留已有教师修改；避免快照递归嵌套。"
+    },
+    {
+      "path": "backend/services/qa.py",
+      "change": "基于本课程关键词、图谱及素材检索回答；检查引用编号；通过真实Page节点解析出处页码及原任务URL。"
+    },
+    {
+      "path": "backend/routes/repair.py",
+      "change": "素材描述核对、原PDF和受限图片访问；适配导出器相对路径；保留原模型内容及关系待审状态。"
+    },
+    {
+      "path": "frontend",
+      "change": "统一课程ID、会话和API；展示真实任务进度；适配课程概览、概念层级、前置学习和素材核对。"
+    },
+    {
+      "path": "frontend/static/js/export_metadata.js",
+      "change": "SVG及PNG导出；作者为昕煜 冷，导出图使用宋体。"
+    },
+    {
+      "path": "tests",
+      "change": "课程隔离、教师修改合并、任务恢复、来源归属、素材图片边界及前端契约回归。"
+    }
+  ],
+  "verification": {
+    "fresh_source_pages": 21,
+    "course_id": "course_4385a1b0c2b34e949778ae01b2cc66a9",
+    "job_id": "job_9fc331b0b20f424aa9dad7e3a193502d",
+    "course_name": "完整联调验证 2026-10-23",
+    "graph_url": "http://127.0.0.1:8769/knowledge-graph/?course_id=course_4385a1b0c2b34e949778ae01b2cc66a9&course_name=%E5%AE%8C%E6%95%B4%E8%81%94%E8%B0%83%E9%AA%8C%E8%AF%81+2026-10-23",
+    "fresh_pipeline": "PDF上传→57次视觉/素材请求→30次建图请求→Neo4j入库与读回→可编辑审核快照发布；无历史素材描述复用。",
+    "model_requests": {
+      "vision": 57,
+      "graph": 30,
+      "question": 1,
+      "total": 88
+    },
+    "estimated_cost_yuan": "1.328500",
+    "account_balance_queried": false,
+    "test_batch_limit": {
+      "max_cost_yuan": "3",
+      "max_requests": 100,
+      "remaining_requests": 12
+    },
+    "graph_counts": {
+      "concepts": 102,
+      "semantic_relations": 121,
+      "nodes": 205,
+      "all_relationships": 697,
+      "hierarchy_grouping_candidates": 44
+    },
+    "material_review": {
+      "items": 59,
+      "items_with_source_image": 59
+    },
+    "offline_tests": {
+      "passed": 68,
+      "failures": 0,
+      "errors": 0,
+      "report": "runtime/offline_tests_final.json"
+    },
+    "real_http_checks": 10,
+    "post_restart_read_only_http_checks": 11,
+    "evidence_directory": "runtime/verification/20261023_182330_af2811",
+    "source_integrity": "runtime/integrity_check.json；95个原源码、2个压缩包、3个历史保护成品哈希一致。",
+    "exports": [
+      "runtime/verification/20261023_182330_af2811/graph_overview.svg",
+      "runtime/verification/20261023_182330_af2811/graph_overview.png",
+      "runtime/verification/20261023_182330_af2811/graph_hierarchy.png"
+    ],
+    "qa_page_fix": "真实模型回答验收后发现页码缺失，已修复并离线复用原问题及图谱验证；修复后未重新调用模型。",
+    "automated_edit_test": "在独立测试课程中临时编辑并还原概念说明，仅验证保存；未代替真实教师审核。"
+  },
+  "remaining_scope": [
+    "当前在本机运行并使用新云端Neo4j；服务器部署和服务器本地Neo4j切换尚未验证。",
+    "本轮上传完整管线支持PDF；PPTX和其他格式尚未接入这个上传入口。",
+    "问答使用本课程关键词与图谱素材检索；未启用向量检索和旧版GraphRAG。",
+    "模型建议、自动归组候选及前置关系需教师审核；尚未证明教学效果提升。",
+    "当前测试账本还剩12次请求，不足以重复本轮完整21页任务；新增整章收费批次需另行设置预算并保留现有账本。"
+  ],
+  "latest_ui_update": {
+    "date": "2026-10-25",
+    "record": "../进度/2026-10-25_图谱加载与登录状态修复.json",
+    "engine": "Cytoscape.js 3.34.4 (MIT)",
+    "tests_passed": 133,
+    "paid_requests": 0,
+    "whole_course_live_pipeline_verified": false,
+    "synthetic_course_browser_verified": {
+      "documents": 50,
+      "nodes": 5000,
+      "relations": 10000
+    },
+    "load_and_authentication_states_verified": true
+  },
+  "ui_update_history": [
+    {
+      "date": "2026-10-24",
+      "record": "../进度/2026-10-24_整课图谱与语义缩放.json",
+      "engine": "Cytoscape.js 3.34.4 (MIT)",
+      "tests_passed": 126,
+      "paid_requests": 0,
+      "whole_course_live_pipeline_verified": false,
+      "synthetic_course_browser_verified": {
+        "documents": 50,
+        "nodes": 5000,
+        "relations": 10000
+      }
+    }
+  ]
+}

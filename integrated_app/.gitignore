@@ -1,0 +1,10 @@
+.venv/
+runtime/
+config/local.env
+config/*.local.*
+__pycache__/
+*.pyc
+*.log
+key.env
+key.*.env
+tests/.tmp/

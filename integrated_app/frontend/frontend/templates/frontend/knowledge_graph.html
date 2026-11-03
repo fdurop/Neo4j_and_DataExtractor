@@ -1,0 +1,166 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>课程知识图谱 · 教学助手</title>
+  <link rel="stylesheet" href="{% static 'css/knowledge_graph.css' %}?v=20261031-radial1">
+  <script defer src="{% static 'js/knowledge_graph_model.js' %}?v=20261102-search-modes2"></script>
+  <script defer src="{% static 'js/export_metadata.js' %}?v=20261024-semantic1"></script>
+  <script defer src="{% static 'js/vendor/cytoscape.min.js' %}"></script>
+  <script defer src="{% static 'js/graph_map_layout.js' %}?v=20261024-semantic1"></script>
+  <script defer src="{% static 'js/graph_canvas.js' %}?v=20261102-search-modes2"></script>
+  <script defer src="{% static 'js/graph_springs.js' %}?v=20261031-1"></script>
+  <script defer src="{% static 'js/interactive_graph.js' %}?v=20261102-search-modes2"></script>
+  <script defer src="{% static 'js/knowledge_graph.js' %}?v=20261102-progress1"></script>
+<style>
+  :root {--controls-height:96px} .map-controls{flex-wrap:wrap;align-content:center;padding:8px 12px;gap:8px}.map-actions{flex-wrap:wrap;flex-shrink:1;min-width:0;max-width:100%}.map-actions button{min-height:32px}.node-properties{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:12px;background:#f6f8f9;padding:12px;border-radius:6px}.node-properties dt{color:#667580}.node-properties dd{margin:0;overflow-wrap:anywhere}.inspector-card{width:min(440px,100vw)}.inspector textarea{min-height:0;resize:none;line-height:1.6;max-height:240px}.inspector>button{margin:6px 6px 6px 0}.node-list{max-height:100px} @media(max-width:850px){:root{--controls-height:220px}.map-controls{display:flex}.map-search{flex-basis:100%}.map-actions{margin-left:0;width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.inspector-card{width:100%}}
+  .source-raw-text{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-height:280px;overflow:auto;background:#f4f6f8;padding:10px;font:12px/1.65 Consolas,monospace}.evidence details{margin:8px 0}.evidence summary{cursor:pointer;color:#466777}.inspector .field{margin:8px 0}.inspector .primary-relations{margin-top:12px}.inspector .node-primary-actions{gap:6px;flex-wrap:wrap}.primary-relations .relation-item{padding:8px;margin-top:8px}.primary-relations .relation-item details{margin-top:6px;padding-top:4px}.primary-relations .relation-item .badge{font-size:10px}.inspector .node-properties{font-size:11px}.primary-relations>.button-row{margin-top:8px}
+  #graphBusyDialog{position:fixed;inset:0;margin:0;border:0;padding:24px;width:100vw;height:100dvh;max-width:none;max-height:none;box-sizing:border-box;background:transparent;display:grid;place-items:center;color:#253746;cursor:wait}
+  #graphBusyDialog:not([open]){display:none}
+  #graphBusyDialog::backdrop{background:rgba(35,43,52,.48)}
+  .graph-busy-card{width:min(420px,calc(100vw - 48px));box-sizing:border-box;padding:30px;text-align:center;background:#fff;border-radius:12px;box-shadow:0 16px 60px #14202f35;cursor:default}
+  .graph-busy-spinner{width:36px;height:36px;margin:0 auto 20px;border:4px solid #dce6ed;border-top-color:#376fa4;border-radius:50%;animation:graph-busy-spin .8s linear infinite}
+  .graph-busy-spinner[hidden]{display:none}.graph-busy-card h2{margin:0 0 12px;font-size:19px}.graph-busy-card p{margin:0;line-height:1.7;font-size:14px;color:#627384}.graph-busy-actions{margin-top:20px;display:flex;gap:10px;justify-content:center}.graph-busy-actions[hidden]{display:none}
+  @keyframes graph-busy-spin{to{transform:rotate(360deg)}}
+  @media(prefers-reduced-motion:reduce){.graph-busy-spinner{animation-duration:2.5s}}
+</style></head>
+<body>
+<main class="kg-page">
+  <header class="kg-header">
+    <div class="header-title">
+      <a class="back-link" href="/teacher/" aria-label="返回课程列表">← <span class="back-text">课程</span></a>
+      <span class="header-divider" aria-hidden="true"></span>
+      <div class="title-block">
+        <h1>课程知识图谱</h1>
+        <p id="courseName" class="course-name">课程知识图谱</p>
+      </div>
+    </div>
+    <details class="file-menu">
+      <summary>文件与导出</summary>
+      <div class="file-menu-panel">
+        <button id="reloadGraph" type="button">重新加载课程图谱</button>
+        <button id="importGraph" type="button">导入图谱 JSON</button>
+        <input type="file" id="graphFile" accept=".json,application/json" aria-label="选择要导入的图谱 JSON" hidden>
+        <button id="exportJson" type="button">保存图谱 JSON</button>
+        <hr>
+        <button id="exportSvg" type="button">导出 SVG</button>
+        <button id="exportPng" type="button">导出清晰 PNG</button>
+      </div>
+    </details>
+  </header>
+
+  <section class="workspace" aria-label="课程图谱工作区">
+    <div class="graph-main">
+      <div class="map-controls">
+        <nav class="view-tabs" aria-label="图谱视图">
+          <button type="button" data-mode="overview" aria-pressed="true">课程概览</button>
+          <button type="button" data-mode="hierarchy" aria-pressed="false">概念层级</button>
+          <button type="button" data-mode="prerequisites" aria-pressed="false">前置学习</button>
+        </nav>
+        <label class="map-search" for="graphSearch"><span class="sr-only">搜索知识点</span><input id="graphSearch" type="search" placeholder="搜索知识点"></label>
+        <label for="searchDisplay" style="display:flex;align-items:center;gap:6px;font-size:12px">搜索显示
+          <select id="searchDisplay" aria-label="搜索显示方式"><option value="isolate">只看命中及一级邻居</option><option value="highlight">突出命中节点，保留全图</option><option value="fade">淡化无关节点，保留全图</option></select>
+        </label>
+        <div class="map-actions">
+          <button id="toolbarAddNode" type="button">＋ 节点</button><button id="toolbarAddEdge" type="button">＋ 关系</button>
+          <button id="relayoutGraph" type="button">重新布局</button><button id="pauseGraph" type="button">暂停牵动</button><button id="pinNode" type="button">固定 / 解锁节点</button><button id="undoGraph" type="button">撤销修改</button>
+          <button id="toggleFilters" type="button" aria-expanded="false" aria-controls="filterPanel">筛选</button>
+          <button id="toggleInspector" type="button" aria-expanded="false" aria-controls="inspectorDrawer">知识点</button>
+          <button id="toggleFullscreen" type="button" aria-pressed="false" title="切换全屏聚焦">聚焦</button>
+        </div>
+      </div>
+      <section id="filterPanel" class="filter-panel" aria-label="图谱筛选与说明" hidden>
+        <h2>图谱筛选</h2>
+        <div class="filters">
+          <label for="documentFilter">来源课件<select id="documentFilter"><option value="">全部课件</option></select></label>
+          <label for="importanceFilter">重要程度<select id="importanceFilter"><option value="3">全部重要程度</option><option value="1">仅核心</option><option value="2">核心与次要</option></select></label>
+        </div>
+        <div class="filter-checks">
+          <label for="showDetails"><input id="showDetails" type="checkbox"> 显示全部细节</label>
+          <label for="showPending"><input id="showPending" type="checkbox" checked> 显示待确认关系</label>
+          <label for="showEdgeLabels"><input id="showEdgeLabels" type="checkbox"> 关系名称</label>
+        </div>
+        <div class="legend" aria-label="图谱标记说明">
+          <span><i class="dot confirmed" aria-hidden="true"></i>教师确认</span>
+          <span><i class="dot suggested" aria-hidden="true"></i>模型建议</span>
+          <span><i class="dot pending" aria-hidden="true"></i>待判断 / 细节</span>
+          <span><i class="dash" aria-hidden="true"></i>待确认关系</span>
+        </div>
+        <p id="viewDescription" class="view-description"></p>
+        <p class="muted">来源归组、概念层级与先修关系分别记录；重要程度为估计值。</p>
+      </section>
+      <div class="graph-frame">
+        <div id="graphWarning" class="notice warning" hidden></div>
+        <div class="graph-scroll"><div id="graphContainer" role="img" aria-label="课程知识图谱；可在右侧知识点列表选择节点" tabindex="0"></div></div>
+        <div id="graphEmpty" class="graph-empty" hidden>
+          <div class="empty-mark" aria-hidden="true">∅</div>
+          <h2 id="emptyTitle">这里还没有图谱</h2>
+          <p id="emptyDescription">可重新加载课程，或导入已有图谱 JSON。</p>
+          <div id="graphLoadProgress" hidden style="width:min(360px,80vw);margin:16px auto;text-align:center">
+            <progress id="graphLoadBar" max="100" aria-label="图谱数据库读取进度" style="width:100%;height:16px;accent-color:#26766b"></progress>
+            <p id="graphLoadText" role="status" style="font-size:13px;margin:8px 0"></p>
+          </div>
+        </div>
+        <div class="canvas-toolbar" role="toolbar" aria-label="画布控制">
+          <div class="zoom-controls">
+            <button id="zoomOut" type="button" class="icon-button" aria-label="缩小图谱" title="缩小">−</button>
+            <output id="zoomLevel" aria-label="当前缩放比例" aria-live="polite">100%</output>
+            <button id="zoomIn" type="button" class="icon-button" aria-label="放大图谱" title="放大">＋</button>
+            <span class="tool-divider" aria-hidden="true"></span>
+            <button id="zoomReset" type="button" title="恢复概览比例">100%</button>
+            <button id="fitGraph" type="button" title="缩小查看本档全图；100%恢复可读比例">全图概览</button>
+          </div>
+          <div class="detail-indicator"><output id="detailLevel" aria-label="当前细节层级" aria-live="polite">主干</output><span>点击查看邻居 · 空白处取消</span></div>
+        </div>
+      </div>
+    </div>
+    <aside id="inspectorDrawer" class="inspector-card" aria-label="知识点与证据">
+      <div class="list-header"><h2>知识点与证据</h2><div><button id="addNode" type="button" class="text-button">＋ 新增</button><button id="closeInspector" type="button" class="icon-button" aria-label="收起知识点面板" title="收起面板">×</button></div></div>
+      <div id="nodeList" class="node-list" aria-label="当前可见知识点"></div>
+      <section id="inspector" class="inspector"><h2>选择一个知识点</h2><p class="muted">查看说明、来源证据与前置知识，并核对教学角色。</p></section>
+    </aside>
+  </section>
+  <footer class="workspace-status">
+    <div class="graph-meta"><span class="workspace-note" id="workspaceNote">课程图谱</span><span class="graph-summary" id="graphSummary" aria-live="polite"></span></div>
+    <p id="graphStatus" class="status" role="status" aria-live="polite"></p>
+  </footer>
+</main>
+
+<dialog id="nodeDialog" aria-labelledby="nodeDialogHeading">
+  <form id="nodeForm">
+    <h2 id="nodeDialogHeading">新增知识点</h2>
+    <label for="newNodeName">名称<input id="newNodeName" required maxlength="200"></label>
+    <label for="newNodeDescription">说明<textarea id="newNodeDescription" rows="3"></textarea></label>
+    <p class="muted">新增后可单独确认教学角色。保存文字不会自动确认模型关系。</p>
+    <p id="nodeDialogError" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" data-close="nodeDialog">取消</button><button type="submit" class="primary">新增知识点</button></div>
+  </form>
+</dialog>
+<dialog id="edgeDialog" aria-labelledby="edgeTitle">
+  <form id="edgeForm">
+    <h2 id="edgeTitle">新增关系</h2><button id="deleteSelectedEdge" type="button" class="danger" hidden>删除这条关系</button>
+    <p class="muted">先修方向为“先学 → 后学”，包含方向为“整体 → 部分”。组成、分类与运行依赖分别记录。</p>
+    <label for="edgeSource">源概念<select id="edgeSource" required></select></label>
+    <label for="edgeType">关系类型<select id="edgeType"><option value="PREREQUISITE_OF">是学习……的前置</option><option value="HAS_PART">包含</option><option value="PART_OF">是……的组成部分</option><option value="IS_A">是……的一种</option><option value="RELATED_TO">相关</option><option value="REQUIRES">运行时需要</option><option value="APPLIES_TO">应用于</option><option value="HAS_PARAMETER">具有参数</option></select></label>
+    <label for="edgeTarget">目标概念<select id="edgeTarget" required></select></label>
+    <label for="edgeDescription">来源或教学依据<textarea id="edgeDescription" required rows="3" placeholder="说明关系成立的设备、页面或教学情境"></textarea></label>
+    <label class="check-label" for="edgeApproved"><input type="checkbox" id="edgeApproved"> 我已核对方向与依据，确认这条关系</label>
+    <p id="edgeDialogError" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" data-close="edgeDialog">取消</button><button type="submit" class="primary">保存关系</button></div>
+  </form>
+</dialog>
+<dialog id="graphBusyDialog" aria-labelledby="graphBusyTitle" aria-describedby="graphBusyText">
+  <section class="graph-busy-card" role="status" aria-live="polite">
+    <div id="graphBusySpinner" class="graph-busy-spinner" aria-hidden="true"></div>
+    <h2 id="graphBusyTitle">正在处理……</h2>
+    <p id="graphBusyText">请稍候，图谱更新完成后将自动恢复操作。</p>
+    <div id="graphBusyActions" class="graph-busy-actions" hidden>
+      <button id="graphBusyRetry" type="button" class="primary">重新加载图谱</button>
+      <button id="graphBusyClose" type="button">关闭提示</button>
+    </div>
+  </section>
+</dialog>
+</body>
+</html>
